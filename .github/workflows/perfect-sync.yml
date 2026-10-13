@@ -1,0 +1,101 @@
+name: 纯正 Fork 全量自动化同步 (分支解耦完美版)
+
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 每 6 小时自动全量同步一次
+  workflow_dispatch:      # 支持手动点击按钮立即同步
+
+# ==================== 🛠️ 只有以下四个地方需要你修改 ====================
+env:
+  # 【👉 需修改 1/4】：请在此处直接填入上游在 GitHub API 中所需的“用户名/仓库名”
+  UPSTREAM_REPO: 'angusdevgo/Seep-Reverse-Lab'
+
+  # 【👉 需修改 2/4】：上游仓库的完整代码克隆网址
+  UPSTREAM_URL: 'https://github.com/angusdevgo/Seep-Reverse-Lab'
+
+  # 【👉 需修改 3/4】：原作者仓库的主分支名称（通常是 main 或 master）
+  UPSTREAM_BRANCH: 'main'
+
+  # 【👉 需修改 4/4】：你自己当前仓库的主分支名称（通常是 main 或 master）
+  MY_BRANCH: 'main'
+# ====================================================================
+
+jobs:
+  sync-everything:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 使用官方标准工具检出当前仓库
+      - name: 检出当前仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 获取完整 Git 历史
+          # 🔥 使用你刚刚在各个仓库手动配好的全局 Classic 令牌
+          token: ${{ secrets.SYNC_PAT }}
+          persist-credentials: true # 持久化最高读写凭证
+
+      # 2. 官方标准：利用 Git 原生对齐分支与标签
+      - name: 全量同步所有分支与Tag
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 绝对安全：无条件直接采用你顶层声明的完整 URL，0 解析风险
+          echo "🌐 正在连接至标准上游源: ${{ env.UPSTREAM_URL }}"
+          git remote add upstream "${{ env.UPSTREAM_URL }}"
+          git fetch upstream --prune --tags
+          
+          # 官方标准：强推所有标签（确保 Release 的底层 Tag 绝对对齐）
+          git push origin --tags --force || true
+          
+          # ✅ 修复核心：精准切换到你本地指定的默认主分支，防止Actions默认检出HEAD导致指针游离
+          git checkout ${{ env.MY_BRANCH }}
+          
+          # ✅ 修复核心：温柔合并原作者指定的主分支，允许不相关的历史。
+          # 这样无论你叫 main 他叫 master，还是你叫 master 他叫 main，都能完美把他的最新代码融入你的主分支
+          echo "🎯 正在将上游的 [${{ env.UPSTREAM_BRANCH }}] 合并到本地的 [${{ env.MY_BRANCH }}]..."
+          git merge "upstream/${{ env.UPSTREAM_BRANCH }}" --allow-unrelated-histories -m "🔄 自动合并上游最新代码" || true
+          
+          # 精准推送到你自己的远端主分支
+          git push origin ${{ env.MY_BRANCH }}
+
+      # 3. 使用 GitHub 官方一键工具 (GH CLI) 标准流式处理补全所有 Release 附件
+      - name: 补全并同步 Release 附件
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_PAT }}
+        run: |
+          echo "📦 正在无缝对接上游核心仓库: ${{ env.UPSTREAM_REPO }}"
+          MY_REPO="${{ github.repository }}"
+          
+          echo "开始检索上游所有 Release..."
+          
+          # 工业标准：利用 GH CLI 原生内置的 --paginate 参数，全自动流式翻页
+          gh api "repos/${{ env.UPSTREAM_REPO }}/releases?per_page=100" --paginate --jq '.[].tag_name' 2>/dev/null | tr -d '\r' | while read -r TAG; do
+            if [ -z "$TAG" ]; then continue; fi
+            
+            # 【智能去重机制】: 检查你自己的仓库里是否已经存在这个 Release
+            if ! gh release view "$TAG" --repo "$MY_REPO" >/dev/null 2>&1; then
+              echo "🚀 发现未同步版本 [$TAG] ，开始跨机房搬运附件..."
+              
+              # 创建临时文件夹下载附件
+              mkdir -p ./temp_assets
+              gh release download "$TAG" --repo "${{ env.UPSTREAM_REPO }}" --dir ./temp_assets || true
+              
+              # 获取原作者 Release 的标题和正文日志
+              TITLE=$(gh release view "$TAG" --repo "${{ env.UPSTREAM_REPO }}" --json name -q .name)
+              BODY=$(gh release view "$TAG" --repo "${{ env.UPSTREAM_REPO }}" --json body -q .body)
+              
+              # 【防御性空资产放行】：判断是否有附件。如果有则带文件上传；如果是纯文本 Release 则不带文件，防止报错中断
+              if [ "$(ls -A ./temp_assets 2>/dev/null)" ]; then
+                gh release create "$TAG" ./temp_assets/* --repo "$MY_REPO" --title "$TITLE" --notes "$BODY" || true
+              else
+                gh release create "$TAG" --repo "$MY_REPO" --title "$TITLE" --notes "$BODY" || true
+              fi
+              
+              # 💡 工业标准：每创建完一个版本，立刻物理粉碎临时文件
+              rm -rf ./temp_assets
+              echo "🧹 已清理版本 [$TAG] 的临时本地缓存"
+            else
+              echo "✨ 版本 [$TAG] 本地已存在，自动跳过。"
+            fi
+          done
+          echo "🎉 全量历史 Release 增量对齐长征成功完结！"
