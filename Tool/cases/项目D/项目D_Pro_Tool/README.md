@@ -56,7 +56,7 @@
 
 | Mode | Underlying Mechanism | Recommended Scenario |
 | :--- | :--- | :--- |
-| 🔥 **Mode 1: Rapid Deep Unlock** | Scans and patches 15 instruction sites (31 bytes) in `项目D.exe` using AOB dual-state signatures (including 1 version-adaptive optional site), strips Authenticode certificates, recomputes the PE checksum, and writes permanent license metadata. | Complete offline entitlement with all functional and dialog restrictions removed. |
+| 🔥 **Mode 1: Rapid Deep Unlock** | Scans and patches 16 instruction sites (32 bytes) in `项目D.exe` using AOB dual-state signatures (including 1 version-adaptive optional site and the auto-update timer cutoff), strips Authenticode certificates, recomputes the PE checksum, and writes permanent license metadata. | Complete offline entitlement with all functional and dialog restrictions removed. |
 | ❄️ **Mode 2: Permanent Trial Freeze** | Employs Windows Access Control Lists (ACLs) to write-protect 项目D's evaluation CLSID registry keys and timestamps at a fixed 30-day trial status without altering binary code. | Users requiring unaltered PE binary hashes and compatibility with silent official in-app updates. |
 | 💎 **Mode 3: Custom Identity Registration** | Injects custom user name and email credentials (with randomized identity generation) into the registry while coordinating underlying binary unlock hooks. | Customizing personalized registered ownership displays in the 项目D interface. |
 | 🔄 **Mode 4: Factory Reset & State Cleanup** | Purges evaluation CLSID registry markers, known blacklist records, telemetry flags, and leftover state, restoring 项目D to a clean post-installation state. | Resolving corrupted state, notification anomalies, or preparing for clean testing. |
@@ -80,7 +80,7 @@
 ```
 [Stock 项目D.exe] ──> [PE Structural Integrity Check] ──> [AOB Dual-State Signature Scan]
                                │
-                               ├──> 1. AOB Signature Scan & Patch (15 sites / 31 bytes)
+                               ├──> 1. AOB Signature Scan & Patch (16 sites / 32 bytes)
                                ├──> 2. Zero Authenticode Directory & Truncate 10,608-byte Overlay
                                ├──> 3. Standard PE Checksum Recomputation (Microsoft Algorithm)
                                ├──> 4. Pre/Post-Write Dual PE Validation with Atomic Rollback
@@ -100,8 +100,8 @@ The **v3 architecture** transitions to an **Array of Bytes (AOB) Pattern Signatu
 5. Signatures are derived from **cross-version common invariant regions**, filtering out compiler-generated relocation pointers.
 
 > Current signatures are validated across **five releases**: **6.43 build 10**, **build 11 (6.43.11.2)**, **build 11 (6.43.11.3)**, **build 12 (6.43.12.3)**, and **build 15 (6.43.15.3)**.  
-> The **14 required sites** match uniquely across all five versions.  
-> The **15th site** is an optional version-adaptive patch targeting the build 11.3+ anti-piracy behavior (see §0.2); it does not exist in build 10 / 11.2 and is skipped automatically.
+> The **15 required sites** match uniquely across all five versions (including Site #16 which cuts off the background auto-update timer).  
+> The **16th entry (Site #15)** is an optional version-adaptive patch targeting the build 11.3+ registration dialog behavior (see §0.2); it does not exist in build 10 / 11.2 and is skipped automatically.
 
 ### 0.1 Version-Aware Backup Mechanism (Preventing Stale Rollback Points)
 
@@ -137,11 +137,11 @@ Preflight gating requires that all required sites are satisfied: `requiredOk == 
 
 | Release Target | Matched Sites | Resulting Binary Hash |
 | :--- | :--- | :--- |
-| **build 10** | 14 / 15 (Optional skipped) | Identical to v1.3.0 (`712BD0D9…`) — Zero Regression |
-| **build 11 (11.2)** | 14 / 15 (Optional skipped) | Identical to v1.3.0 (`3470B5B8…`) — Zero Regression |
-| **build 11 (11.3)** | **15 / 15** | Applies 15th site patch (`641A6D97…`), neutralizing registration dialogs |
-| **build 12 (12.3)** | **15 / 15** | Applies 15th site patch (`B9B6F951…`) |
-| **build 15 (15.3)** | **15 / 15** | Applies 15th site patch (`5005D219…`) — see §0.3 |
+| **build 10** | 15 / 16 (Optional skipped) | `69F95587…` — Site #16 Active |
+| **build 11 (11.2)** | 15 / 16 (Optional skipped) | `0A22C48B…` — Site #16 Active |
+| **build 11 (11.3)** | **16 / 16** | `02627D24…` — All Active |
+| **build 12 (12.3)** | **16 / 16** | `51088CC0…` — All Active |
+| **build 15 (15.3)** | **16 / 16** | `5891512A…` — All Active |
 
 ### 0.3 Build 15 (6.43.15.3) — Silent Auto-Update Invalidation
 
@@ -154,7 +154,18 @@ The v1.4.0 engine correctly **refused to write** (9 of 15 signatures missed, zer
 
 **Verification discipline applied**: every located site was cross-checked by (a) exact expected-byte match, (b) capstone semantic disassembly compared side-by-side against the build 11.3 baseline, and (c) an end-to-end patch whose diff offsets were asserted to fall **only** within patch sites ∪ PE checksum ∪ security directory.
 
-**Remediation guidance for users**: disable automatic updates (`CheckUpdtVM = 0`, written by Mode 1) so a future silent update does not invalidate the entitlement state again.
+### 0.4 Site #16 — Startup Auto-Update Timer Cutoff & Proxy Error Root Cause
+
+**Observed failure mode**: Users reported recurring error dialogs stating *"Cannot connect to target server... Cannot connect to proxy server 127.0.0.1:XXXX"* during normal usage.
+
+**Reverse Engineering Revelation**:
+1. Legacy activators blindly deleted `LastCheckQU` under the false assumption that it was a telemetry tracking key. In reality, `LastCheckQU` represents **Last Check Quick Update**! Deleting this key signals to 项目D that QuickUpdate has never been executed, causing it to **force an immediate update check on every startup**.
+2. 项目D's update check attempts to connect to official servers using the Windows Internet (WinINET) proxy. If the user's proxy tool is stopped, misconfigured, or on a different port, 项目D throws the proxy connection failure dialog.
+3. The common practice of writing `CheckUpdtVM = 0` was an **unverified urban legend**: decompilation proves 项目D.exe **never reads `CheckUpdtVM`**; it only writes `"10"` to it.
+
+**Architectural Fix**:
+- **Binary Patch #16**: Patches `项目D.exe` startup logic (`0x00076B27` in b15.3, `75 19` → `EB 19`), unconditionally jumping over `SetTimer(..., 0x22, 225000ms)`. The background update timer is **never created**, cutting off all background update polling at the root.
+- **Registry Normalization**: `LastCheckQU` is removed from the deletion list and populated with a valid timestamp, preventing legacy code branches from triggering urgent update checks.
 
 ---
 
@@ -276,10 +287,12 @@ This toolkit is rigorously tested against official retail distribution binaries:
 | **Patched Checksum (v1.4.0)** | `0x005EBDA3` | `0x005E84FA` | `0x005EC25E` | — | — |
 | **Patched SHA-256 (v1.5.0)** | `712BD0D9…36FCC79CC6` | `3470B5B8…DEA6CD601D8` | `641A6D97…B6CC404763E` | `B9B6F951…07739B3E` | `5005D219…3F43466C` |
 | **Patched Checksum (v1.5.0)** | `0x005EBDA3` | `0x005E84FA` | `0x005EC25E` | `0x005F6E1F` | `0x005EC77B` |
+| **Patched SHA-256 (v1.5.1)** | `69F95587…61220F9A` | `0A22C48B…257D5AC8` | `02627D24…3AE2B0B5` | `51088CC0…ADBBB71A` | `5891512A…7780CF5D` |
+| **Patched Checksum (v1.5.1)** | `0x005F33A3` | `0x005EFAFA` | `0x005F385E` | `0x005EE420` | `0x005F3D7B` |
 
 > *Note on Historical Hashes*: Legacy crack releases (e.g. v20.7) populated the PE checksum field with `0x005F0BEA`. Exhaustive algorithmic analysis proves this value corresponds to no valid Microsoft checksum standard. This toolkit writes the **mathematically valid standard checksum**.
 
-> *Signature Invariance*: AOB patterns are anchored in multi-version invariant byte sequences, naturally immune to relocation noise. The 14 required sites match uniquely across all five tested releases; Site #15 automatically activates on build 11.3+ via the `Optional` subsystem.
+> *Signature Invariance*: AOB patterns are anchored in multi-version invariant byte sequences, naturally immune to relocation noise. The 15 required sites match uniquely across all five tested releases (including Site #16); Site #15 automatically activates on build 11.3+ via the `Optional` subsystem.
 
 ---
 

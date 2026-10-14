@@ -115,7 +115,7 @@ namespace IDM_Toolkit_Wpf
                     if (firstArg == "-help" || firstArg == "/help" || firstArg == "/?")
                     {
                         Console.WriteLine("支持命令行选项：");
-                        Console.WriteLine("  -patch                执行模式一：底层深度解锁（AOB 特征码扫描 15 处校验点修补与签名剥离）");
+                        Console.WriteLine("  -patch                执行模式一：底层深度解锁（AOB 特征码扫描 16 处校验点修补与签名剥离）");
                         Console.WriteLine("  -freeze               执行模式二：永久冻结试用期（Windows ACL 锁定时间戳与 CLSID）");
                         Console.WriteLine("  -register [name] [email] [serial]  执行模式三：个性化登记并联动解锁");
                         Console.WriteLine("  -restore              执行一键还原官方原版主程序与官方未注册配置");
@@ -2898,8 +2898,9 @@ namespace IDM_Toolkit_Wpf
         // ===== AOB 特征码表 =====
         // 经 项目D 6.43 build 10 / build 11 (6.43.11.2) / build 11 (6.43.11.3) /
         //        build 12 (6.43.12.3) / build 15 (6.43.15.3) 五个版本交叉验证：
-        // 全部 14 个必需位点在五个版本的「原始态 / 已补丁态」中均为唯一命中；
-        // 第 15 个可选位点仅在 build 11.3 / 12.3 / 15.3 存在（那三个版本唯一命中），
+        // 全部 15 个必需位点在五个版本的「原始态 / 已补丁态」中均为唯一命中；
+        // （含位点 16：启动自动更新定时器切断，从根本上杜绝后台更新探测与代理连接失败弹窗）；
+        // 另有 1 个可选位点仅在 build 11.3 / 12.3 / 15.3 存在（那三个版本唯一命中），
         // 在 build 10 / 11.2 上零命中，由 Optional 机制自动跳过。
         //
         // 特征码取自「五版本共同稳定区」——即只有在这五个版本中字节完全一致的
@@ -3001,6 +3002,16 @@ namespace IDM_Toolkit_Wpf
                 "690085C0740C8BCBE8",
                 "690085C0EB0C8BCBE8",
                 4, "74", "EB", true),
+
+            // ── 位点 16：启动自动更新定时器切断（全版本通用必需位点） ──
+            // 项目D 启动时通过 SetTimer(..., 0x22, 225000ms) 注册后台更新定时器，
+            // 触发后向官方服务器查询并下载 idmupdt.exe；网络不通或代理配置不当时即弹出连接失败报错。
+            // 将 `jne` (75 19) 改为 `jmp` (EB 19)，彻底跳过定时器安装，从根本上杜绝更新探测与弹窗。
+            new AobPoint(
+                "启动自动更新定时器切断 (jne->jmp, 彻底杜绝后台更新)",
+                "389E8E02000075195368E86E03006A228B462050",
+                "389E8E020000EB195368E86E03006A228B462050",
+                6, "75", "EB"),
         };
 
         // 向后兼容：旧代码引用的 RulesCount
@@ -3913,13 +3924,15 @@ namespace IDM_Toolkit_Wpf
                             k.SetValue("LstCheck", "0", RegistryValueKind.String);
 
                             string[] cleanList = new string[] {
-                                "scansk", "tvfrdt", "radxcnt", "ptrk_scdt", "LastCheckQU",
+                                "scansk", "tvfrdt", "radxcnt", "ptrk_scdt",
                                 "scTime", "NextCheck", "BList", "md5pks", "itb_r", "ncl_r"
                             };
                             foreach (string field in cleanList)
                             {
                                 try { k.DeleteValue(field, false); } catch { }
                             }
+                            // 写入有效的检查时间戳，防止遗留逻辑因字段缺失触发紧急检查
+                            k.SetValue("LastCheckQU", (int)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds, RegistryValueKind.DWord);
                             if (logFn != null)
                             {
                                 logFn("✓ 已同步点亮终身授权登记：授权姓名 [" + regName + "]，绑定邮箱 [" + regEmail + "]");
@@ -4049,13 +4062,14 @@ namespace IDM_Toolkit_Wpf
                     {
                         string[] cleanList = new string[] {
                             "FName", "LName", "Email", "Serial", "scansk", "tvfrdt",
-                            "radxcnt", "LstCheck", "ptrk_scdt", "LastCheckQU",
+                            "radxcnt", "LstCheck", "ptrk_scdt",
                             "scTime", "NextCheck", "BList", "md5pks", "itb_r", "ncl_r"
                         };
                         foreach (string field in cleanList)
                         {
                             try { k.DeleteValue(field, false); } catch { }
                         }
+                        k.SetValue("LastCheckQU", (int)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds, RegistryValueKind.DWord);
                         k.SetValue("CheckUpdtVM", 0, RegistryValueKind.DWord);
                         k.SetValue("LstCheck", "0", RegistryValueKind.String);
                     }
