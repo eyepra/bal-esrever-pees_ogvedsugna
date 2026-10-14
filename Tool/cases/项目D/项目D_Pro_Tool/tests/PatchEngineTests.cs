@@ -1,4 +1,4 @@
-// ============================================================================
+﻿// ============================================================================
 //  项目D Pro Tool — 项目D 授权流白盒审计与二进制补丁工具
 //  Copyright (C) 2026  angusdevgo
 //
@@ -19,6 +19,7 @@
 using System;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
@@ -290,6 +291,34 @@ namespace IDM_Toolkit_Wpf
             File.WriteAllBytes(t6, Encoding.UTF8.GetBytes("This is definitely not a PE file, just plain text."));
             int c6 = 0;
             Check("非 PE 文本 -> 拒绝", !MainWindow.NativeBinaryPatcher.ApplyPatch(t6, true, Nop, out c6));
+            Console.WriteLine();
+
+            // 国际化与双语日志测试
+            Console.WriteLine("=======================================================");
+            Console.WriteLine("=== 国际化与双语日志测试 (I18n & TranslateLog)");
+            Console.WriteLine("=======================================================");
+            I18n.SetLanguage(AppLanguage.En);
+            Check("I18n 英文模式下 App.Title 正确", I18n.T("App.Title") == "项目D Pro Tool");
+            Check("I18n 英文模式下 Log.Greeting 为纯英文", !Regex.IsMatch(I18n.T("Log.Greeting"), @"[\u4e00-\u9fa5]"));
+
+            string testLog1 = I18n.TranslateLog("================= 开始执行模式一：极速深度解锁 =================");
+            Check("模式一横幅翻译为英文", testLog1.Contains("Executing Mode 1: Rapid Deep Unlock"));
+
+            string testLog2 = I18n.TranslateLog("✓ 补丁写入 [0x2D71D]: 授权分支检测 (test eax->xor eax)");
+            Check("补丁写入日志行翻译为英文", testLog2.StartsWith("✓ Applied patch [0x2D71D]: License branch check"));
+
+            string testLog3 = I18n.TranslateLog("✓ 已同步点亮终身授权登记：授权姓名 [DemoUser]，绑定邮箱 [demo@vipuser.com]");
+            Check("授权点亮日志翻译为英文", testLog3.Contains("Synchronized lifetime license identity: Name [DemoUser]"));
+
+            string testLog4 = I18n.TranslateLog("★ 永久冻结试用期成功！共锁定 3 处核心 CLSID 试用时间策略键。");
+            Check("试用冻结日志翻译为英文", testLog4.Contains("Trial frozen successfully! Total 3 critical evaluation CLSID policy keys locked."));
+
+            string testLog5 = I18n.TranslateLog("✓ 运行状态：试用倒计时永久停留在剩余 30 天，无任何弹窗骚扰。");
+            Check("试用状态日志翻译为英文", testLog5.Contains("Status: Evaluation countdown permanently held at 30 days remaining"));
+
+            I18n.SetLanguage(AppLanguage.Zh);
+            Check("I18n 切换为中文模式后 Log.Greeting 为中文", Regex.IsMatch(I18n.T("Log.Greeting"), @"[\u4e00-\u9fa5]"));
+            Check("中文模式下 TranslateLog 原样返回", I18n.TranslateLog("================= 开始执行模式一：极速深度解锁 =================").Contains("开始执行模式一"));
             Console.WriteLine();
 
             Console.WriteLine("=======================================================");

@@ -18,6 +18,8 @@
 
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Diagnostics;
 using System.Threading;
 using System.Text;
@@ -38,6 +40,507 @@ using Microsoft.Win32.SafeHandles;
 
 namespace IDM_Toolkit_Wpf
 {
+
+    public enum AppLanguage
+    {
+        Zh, // 简体中文
+        En  // English
+    }
+
+    public static class I18n
+    {
+        public static AppLanguage Current { get; private set; }
+
+        private static readonly Dictionary<string, string> StringsZh = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> StringsEn = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        static I18n()
+        {
+            InitStrings();
+            Initialize();
+        }
+
+        public static void Initialize()
+        {
+            try
+            {
+                string cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lang.cfg");
+                if (File.Exists(cfgPath))
+                {
+                    string saved = File.ReadAllText(cfgPath, Encoding.UTF8).Trim().ToLowerInvariant();
+                    if (saved == "en")
+                    {
+                        Current = AppLanguage.En;
+                        return;
+                    }
+                    if (saved == "zh" || saved == "cn")
+                    {
+                        Current = AppLanguage.Zh;
+                        return;
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
+                string culture = CultureInfo.CurrentUICulture.Name.ToLowerInvariant();
+                Current = culture.StartsWith("zh") ? AppLanguage.Zh : AppLanguage.En;
+            }
+            catch
+            {
+                Current = AppLanguage.Zh;
+            }
+        }
+
+        public static void SetLanguage(AppLanguage lang)
+        {
+            Current = lang;
+            try
+            {
+                string cfgPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "lang.cfg");
+                File.WriteAllText(cfgPath, lang == AppLanguage.En ? "en" : "zh", Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        public static string T(string key, params object[] args)
+        {
+            if (string.IsNullOrEmpty(key)) return string.Empty;
+            string val = null;
+            if (Current == AppLanguage.En)
+            {
+                if (!StringsEn.TryGetValue(key, out val))
+                    StringsZh.TryGetValue(key, out val);
+            }
+            else
+            {
+                if (!StringsZh.TryGetValue(key, out val))
+                    StringsEn.TryGetValue(key, out val);
+            }
+
+            if (val == null) return key;
+            if (args != null && args.Length > 0)
+            {
+                try { return string.Format(val, args); }
+                catch { return val; }
+            }
+            return val;
+        }
+
+        private static void Add(string key, string zh, string en)
+        {
+            StringsZh[key] = zh;
+            StringsEn[key] = en;
+        }
+
+        private static void InitStrings()
+        {
+            // --- 基础框架与侧边栏 ---
+            Add("App.Title", "项目D Pro Tool", "项目D Pro Tool");
+            Add("Brand.Edition", "PRO EDITION · v2026.1", "PRO EDITION · v2026.1");
+            Add("Brand.LangToggle", "🌐 EN", "🌐 简");
+            Add("Brand.LangTooltip", "切换到英文界面 (Switch to English)", "Switch to Chinese (切换到中文界面)");
+            Add("Stat.DashboardTitle", "🖥️ 系统状态仪表盘", "🖥️ System Status Dashboard");
+            Add("Stat.RowInstall", "软件安装:", "Installation:");
+            Add("Stat.InstallInstalled", "已安装 ✓", "Installed ✓");
+            Add("Stat.InstallMissing", "未识别 (点击定位) ✗", "Not Found (Click to Locate) ✗");
+            Add("Stat.RowVersion", "内核版本:", "Kernel Version:");
+            Add("Stat.VersionUnknown", "未知", "Unknown");
+            Add("Stat.RowAuth", "授权状态:", "License Status:");
+            Add("Stat.AuthRegistered", "已登记 ({0})", "Registered ({0})");
+            Add("Stat.AuthFrozen", "❄️ 试用已永久冻结 (30天)", "❄️ Trial Frozen (30 Days)");
+            Add("Stat.AuthUnregistered", "未登记", "Unregistered");
+            Add("Stat.AuthUndetected", "未检测到", "Not Detected");
+            Add("Stat.RowProcess", "后台进程:", "Process Status:");
+            Add("Stat.ProcessRunning", "运行中 ({0})", "Running ({0})");
+            Add("Stat.ProcessStopped", "未运行 ⚪", "Stopped ⚪");
+            Add("Stat.RowPath", "主控路径:", "Master Path:");
+            Add("Stat.PathRegistry", "注册表已指引", "Registry Path");
+            Add("Stat.PathCustom", "用户自定义", "Custom Path");
+            Add("Stat.PathDefault", "默认标准路径", "Default Path");
+            Add("Stat.PathAuto", "自动捕获 ✓", "Auto-Detected ✓");
+            Add("Stat.PathNotFound", "未找到 ⚠", "Not Found ⚠");
+            Add("Stat.PathUndetected", "未检测到", "Not Detected");
+
+            Add("Ctrl.Title", "🛠️ 快捷进程控制", "🛠️ Process Controls");
+            Add("Ctrl.BtnRefresh", "🔄 刷新运行状态", "🔄 Refresh Status");
+            Add("Ctrl.BtnLocate", "📍 手动定位 项目D 路径", "📍 Custom 项目D Path");
+            Add("Ctrl.BtnKill", "⏹️ 强行终止 项目D 进程", "⏹️ Terminate 项目D Process");
+            Add("Ctrl.BtnStart", "▶️ 启动 / 重启 项目D", "▶️ Launch / Restart 项目D");
+            Add("Ctrl.BtnRestore", "♻️ 一键还原官方原版", "♻️ Revert to Stock Binary");
+            Add("Admin.Badge", "🛡️ 管理员特权已就绪 (UAC Admin)", "🛡️ Elevated Token Active (UAC Admin)");
+
+            // --- 主导航与状态栏 ---
+            Add("Tab.Core", "⚡ 核心授权模式", "⚡ Core Activation Modes");
+            Add("Tab.Adv", "🛡️ 高级安全与策略", "🛡️ Security Shields & Policies");
+            Add("Tab.Log", "📝 实时操作控制台", "📝 Live Operation Console");
+            Add("Bottom.Ready", "🟢 引擎就绪 · 所有模块加载正常", "🟢 Engine Ready · All Modules Loaded");
+
+            // --- 模式一：极速深度解锁 ---
+            Add("Mode1.Title", "🔥 模式一：极速深度解锁", "🔥 Mode 1: Rapid Deep Unlock");
+            Add("Mode1.Badge", "全自动秒解 · 终身免弹窗", "Instant Auto-Unlock · Zero-Nag Lifetime");
+            Add("Mode1.Desc", 
+                "• 核心原理：优化主程序底层指令，彻底阻断看门狗拦截、过期强退与假序列号校验。\n• 智能点亮：一键修补底层指令并同步赋予合规终身授权身份，彻底告别未注册提示。\n• 安全可靠：自动备份原版为 项目D.exe.BAK，随时支持一键无损还原官方原版。",
+                "• Core Architecture: Patches underlying machine code across 16 critical sites, severing watchdog threads, expiration traps, and counterfeit serial validation.\n• Identity Sync: Neutralizes checks and applies valid lifetime entitlement in one click, eliminating all unactivated trial alerts.\n• Safety Gate: Archives stock executable to 项目D.exe.BAK automatically, ensuring full atomic restoration at any time.");
+            Add("Mode1.Btn", "⚡ 一键执行极速深度解锁", "⚡ Execute Rapid Deep Unlock");
+
+            // --- 模式二：永久冻结试用期 ---
+            Add("Mode2.Title", "❄️ 模式二：一键永久冻结试用期", "❄️ Mode 2: Permanent Trial Freeze");
+            Add("Mode2.Badge", "官方支持在线更新 · 零误报推荐", "Official Updates Supported · Zero False Positives");
+            Add("Mode2.Desc",
+                "• 核心原理：基于 Windows ACL 权限机制锁定时间戳与 CLSID，永久剩余 30 天试用。\n• 绝大优势：完全无需修改二进制文件，完美支持 项目D 官方无缝在线静默更新！",
+                "• Core Architecture: Write-protects evaluation timestamps and CLSID registry keys via Windows ACLs, permanently holding trial duration at 30 days.\n• Key Advantage: Zero binary modifications required, seamlessly compatible with official in-app background updates!");
+            Add("Mode2.Btn", "❄️ 立即永久冻结试用期 (30天)", "❄️ Freeze Evaluation Trial (30 Days)");
+
+            // --- 模式三：个性化授权登记 ---
+            Add("Mode3.Title", "💎 模式三：个性化授权登记", "💎 Mode 3: Custom Identity Registration");
+            Add("Mode3.Badge", "自定义证书 · 随心定制姓名", "Custom Credentials · Personalized Name");
+            Add("Mode3.Desc",
+                "• 核心原理：个性化定制软件关于界面的已授权人姓名与邮箱，自动联动底层解锁修补。\n• 联动防御：写入自定义信息的同时全面清除假序列号残留与黑名单项，确保系统纯净。",
+                "• Core Architecture: Injects personalized licensee credentials into the About dialog while coordinating underlying binary unlocking hooks.\n• Hardened Shield: Purges residual counterfeit serial records and telemetry keys upon registration to ensure complete system hygiene.");
+            Add("Mode3.LblName", "登记姓名:", "Registered Name:");
+            Add("Mode3.LblEmail", "绑定邮箱:", "Bound Email:");
+            Add("Mode3.LblSerial", "授权证书:", "License Key:");
+            Add("Mode3.BtnRandom", "🎲 随机生成", "🎲 Randomize");
+            Add("Mode3.BtnSubmit", "✨ 一键写入个性化授权", "✨ Apply Custom Registration");
+
+            // --- 模式四：全量清理出厂重置 ---
+            Add("Mode4.Title", "🔄 模式四：全量清理残留与出厂重置", "🔄 Mode 4: Factory Reset & State Cleanup");
+            Add("Mode4.Badge", "环境一键复原 · 消除黑名单", "One-Click Environment Purge · Clear Blacklists");
+            Add("Mode4.Desc",
+                "• 核心原理：申请特权接管系统锁死的全部关联项与 CLSID 试用键，消除封禁警告与拉黑记录。\n• 适用场景：遇到程序频繁弹窗报错、或需完全恢复刚安装时的纯净状态。",
+                "• Core Architecture: Assumes elevated privileges to take ownership of locked CLSID trial keys and configuration state, clearing all blacklist flags.\n• Scenarios: Resolves anomalous error popups, corrupted application state, or restores a pristine post-installation baseline.");
+            Add("Mode4.Btn", "🔄 彻底清理残留并恢复出厂状态", "🔄 Purge Leftovers & Reset to Factory State");
+
+            // --- 高级安全与策略 ---
+            Add("Sec.Header", "🛡️ 弹窗防御与反封锁策略中心", "🛡️ Security Shields & Policy Center");
+            Add("Sec.Badge", "零弹窗骚扰 · 域名防拉黑 · 纯净防护", "Zero Popups · Anti-Blacklist · Clean Protection");
+            Add("Sec.Desc", "通过底层策略切断 项目D 自动联网探测，并利用系统 Hosts 回环阻断官方封禁标记与假冒序列号弹窗。", "Eliminates background telemetry probes via binary patches and redirects validation endpoints to loopback addresses.");
+            Add("Sec.UpdateTitle", "⚡ 启动更新策略", "⚡ Startup Auto-Update Policy");
+            Add("Sec.UpdateChecking", "状态: 检测中...", "Status: Checking...");
+            Add("Sec.UpdateBlocked", "● 自动更新已彻底屏蔽 (安全)", "● Auto-Updates Suppressed (Safe)");
+            Add("Sec.UpdateAllowed", "○ 自动更新未屏蔽 (默认开启)", "○ Auto-Updates Active (Default)");
+            Add("Sec.UpdateUnknown", "⚪ 状态未检测到", "⚪ Status Undetected");
+            Add("Sec.UpdateDesc", "锁定注册表策略并切断更新定时器，彻底消灭升级弹窗。", "Cuts off update timers and configures registry policy to eliminate update prompts.");
+            Add("Sec.BtnBlockUpdate", "🚫 一键屏蔽更新", "🚫 Suppress Updates");
+            Add("Sec.BtnAllowUpdate", "🔔 恢复官方检测", "🔔 Restore Updates");
+
+            Add("Sec.HostsTitle", "🌐 Hosts 域名盾牌", "🌐 Hosts Domain Shield");
+            Add("Sec.HostsChecking", "状态: 检测中...", "Status: Checking...");
+            Add("Sec.HostsActive", "● 8 组规则已就绪 (安全拦截)", "● 8 Rules Active (Blocked)");
+            Add("Sec.HostsInactive", "○ Hosts 防护未启用", "○ Hosts Shield Inactive");
+            Add("Sec.HostsUnknown", "⚪ 状态未知", "⚪ Status Unknown");
+            Add("Sec.HostsDesc", "回环 tonec / registeridm 等 8 组服务器，断绝官方黑名单回传。", "Redirects tonec / registeridm verification endpoints to 127.0.0.1.");
+            Add("Sec.BtnBlockHosts", "🛡️ 启用域名拦截", "🛡️ Enable Shield");
+            Add("Sec.BtnRestoreHosts", "🔓 恢复 Hosts", "🔓 Restore Hosts");
+
+            Add("Tool.Header", "📁 系统路径与注册表工具箱", "📁 System Paths & Registry Toolbox");
+            Add("Tool.Badge", "快捷运维 · 一键直达", "Quick Maintenance · Instant Access");
+            Add("Tool.BackupTitle", "💾 备份配置", "💾 Backup Config");
+            Add("Tool.BackupSub", "导出 .reg 到桌面", "Export .reg to Desktop");
+            Add("Tool.RegeditTitle", "🧭 注册表", "🧭 Registry Editor");
+            Add("Tool.RegeditSub", "打开 regedit", "Open regedit");
+            Add("Tool.DirTitle", "📂 安装目录", "📂 Install Directory");
+            Add("Tool.DirSub", "打开 项目D 目录", "Open 项目D Folder");
+            Add("Tool.LocateTitle", "📍 定位路径", "📍 Custom Path");
+            Add("Tool.LocateSub", "自定义 项目D.exe", "Custom 项目D.exe");
+
+            // --- 控制台就绪说明 ---
+            Add("Log.Greeting",
+                "[系统初始化] C# WPF 原生矢量渲染引擎已就绪 (支持高分屏自适应)\r\n" +
+                "[外观渲染] DWM 沉浸式深黑标题栏 (Immersive Dark Mode) 与微圆角已激活\r\n" +
+                "[特权验证] UAC requireAdministrator 权限已激活\r\n" +
+                "[环境就绪] 请在上方选项卡选择所需的操作模式。",
+                "[System Init] Native C# WPF vector UI engine ready (Per-Monitor High-DPI scaling enabled)\r\n" +
+                "[DWM Render] Windows Immersive Dark Mode titlebar and rounded corners active\r\n" +
+                "[Privilege] UAC requireAdministrator elevated token verified\r\n" +
+                "[Environment Ready] Select your desired operating mode from the tabs above.");
+
+            // --- 现代化交互弹窗与按钮 ---
+            Add("Dlg.BtnOk", "确定完成", "Done");
+            Add("Dlg.BtnGotIt", "我知道了", "Got It");
+            Add("Dlg.BtnCancel", "取消", "Cancel");
+            Add("Dlg.BtnConfirm", "确认继续", "Confirm");
+
+            Add("Dlg.Locate.DialogTitle", "手动定位 项目D.exe 主程序", "Locate 项目D.exe Manually");
+            Add("Dlg.Locate.Filter", "项目D 主程序 (项目D.exe)|项目D.exe|所有可执行程序 (*.exe)|*.exe", "项目D Executable (项目D.exe)|项目D.exe|All Executables (*.exe)|*.exe");
+            Add("Dlg.Locate.Success.Title", "定位成功", "Path Located");
+            Add("Dlg.Locate.Success.Msg", "项目D 主程序路径已成功更新并记忆：\n\n• 当前路径：{0}\n• 主程序：项目D.exe\n\n所有核心解锁、备份与还原功能将即刻生效于此路径！", "项目D master executable path updated and saved:\n\n• Current Path: {0}\n• Executable: 项目D.exe\n\nAll unlocking, backup, and restoration features will take effect immediately!");
+            Add("Dlg.Locate.Failed.Title", "定位失败", "Location Failed");
+            Add("Dlg.Locate.Failed.Msg", "未能应用所选路径:\n\n{0}", "Failed to apply the selected path:\n\n{0}");
+            Add("Dlg.Locate.NotFound.Title", "未找到程序", "Executable Not Found");
+            Add("Dlg.Locate.NotFound.Msg", "未找到 项目D.exe 主程序！\n\n如果您的 项目D 安装在其他盘符（如 D盘、E盘），请点击左侧或工具箱的【手动定位 项目D 路径】指定 项目D.exe。", "项目D.exe executable not found!\n\nIf 项目D is installed on another drive (e.g. D:\\, E:\\), please click [Custom 项目D Path] in the sidebar or toolbox to select 项目D.exe.");
+            Add("Dlg.Locate.DirNotFound.Title", "未找到目录", "Directory Not Found");
+            Add("Dlg.Locate.DirNotFound.Msg", "未检测到 项目D 安装目录，请点击【定位路径】手动指定 项目D.exe 所在文件夹。", "项目D installation directory not detected. Please click [Custom Path] to select the folder containing 项目D.exe.");
+
+            Add("Dlg.Update.Blocked.Title", "更新策略生效", "Update Policy Applied");
+            Add("Dlg.Update.Blocked.Msg", "已成功屏蔽 项目D 启动自动检查更新！\n\n• 策略注册表 CheckUpdtVM 已锁死为 0\n• 彻底切断启动联网升级请求，不再弹出版本升级窗口。", "项目D startup update check suppressed successfully!\n\n• Registry CheckUpdtVM policy set to 0\n• Startup update network requests severed to eliminate upgrade popups.");
+            Add("Dlg.Update.Restored.Title", "更新策略已恢复", "Update Policy Restored");
+            Add("Dlg.Update.Restored.Msg", "已恢复 项目D 官方自动更新检查功能。\n\n• 策略注册表 CheckUpdtVM 已重置为 1。", "Official 项目D update check policy restored.\n\n• Registry CheckUpdtVM policy reset to 1.");
+
+            Add("Dlg.Hosts.Blocked.Title", "Hosts 防护已生效", "Hosts Shield Enabled");
+            Add("Dlg.Hosts.Blocked.Msg", "Hosts 域名反封锁防护已成功启用！\n\n• 已将 tonec.com / registeridm.com 等 8 组验证服务器回环指向 127.0.0.1\n• 彻底切断序列号黑名单回传与虚假授权弹窗标记。", "Hosts domain shield enabled successfully!\n\n• 8 verification server groups (tonec.com / registeridm.com) redirected to 127.0.0.1\n• Blacklist reporting and fake registration warning triggers completely severed.");
+            Add("Dlg.Hosts.Restored.Title", "Hosts 规则已重置", "Hosts Rules Restored");
+            Add("Dlg.Hosts.Restored.Msg", "已从系统 Hosts 中移除 项目D 验证服务器拦截规则。", "项目D verification server intercept rules removed from system hosts.");
+            Add("Dlg.Hosts.Failed.Title", "Hosts 配置失败", "Hosts Setup Failed");
+            Add("Dlg.Hosts.Failed.Msg", "配置系统 Hosts 失败: {0}\n\n• 请确认是否已被第三方杀毒软件拦截。", "Failed to configure system hosts: {0}\n\n• Please verify whether third-party security software blocked access.");
+
+            Add("Dlg.Corrupt.Title", "项目D.exe 已损坏", "项目D.exe Corrupted");
+            Add("Dlg.Corrupt.Msg", "检测到 项目D.exe 无法作为可执行程序加载：\n\n• {0}\n\n常见原因：\n  1) 补丁偏移与当前 项目D 版本不匹配，导致映像被写坏；\n  2) 杀毒软件查杀后残留了不完整文件；\n  3) 磁盘写入中断。\n\n是否立即从 项目D.exe.BAK 备份还原官方原版？", "Detected that 项目D.exe cannot be loaded as a valid executable:\n\n• {0}\n\nCommon Causes:\n  1) Patch offsets misaligned with 项目D version, corrupting the image;\n  2) Antivirus interception leaving an incomplete binary;\n  3) Disk write interrupted.\n\nRestore official stock binary from 项目D.exe.BAK now?");
+            Add("Dlg.Start.Failed.Title", "启动失败", "Launch Failed");
+            Add("Dlg.Start.Failed.Msg", "启动 项目D 失败：\n\n{0}\n\n若提示「不是有效的 Win32 应用程序」，说明 项目D.exe 已被破坏，\n请使用左侧【一键还原官方原版】恢复后再重试。", "Failed to launch 项目D:\n\n{0}\n\nIf error indicates 'not a valid Win32 application', 项目D.exe is corrupted.\nPlease use [Revert to Stock Binary] on the left to restore and retry.");
+
+            Add("Dlg.RegBackup.Title", "注册表配置已备份", "Registry Config Exported");
+            Add("Dlg.RegBackup.Msg", "项目D 当前注册表配置已成功导出保存至您的桌面！\n\n• 备份文件：IDM_Reg_Backup.reg\n• 存放路径：{0}", "Current 项目D registry configuration exported to your desktop!\n\n• Backup File: IDM_Reg_Backup.reg\n• File Path: {0}");
+            Add("Dlg.OpError.Title", "操作执行异常", "Execution Exception");
+            Add("Dlg.OpError.Msg", "执行该工具时发生异常:\n\n{0}", "Exception occurred while executing tool:\n\n{0}");
+
+            Add("Dlg.Patch.Success.Title", "深度解锁成功", "Deep Unlock Succeeded");
+            Add("Dlg.Patch.Success.Msg", "项目D 极速深度解锁成功！\n\n• 已完成全部 {0}/{1} 处核心校验指令修补\n• 授权身份：已同步点亮（授权人：{2}）\n• 关于界面：已生效为终身完整许可\n• 假冒序列号弹窗与看门狗拦截已被彻底切断！", "项目D Rapid Deep Unlock Succeeded!\n\n• Successfully patched all {0}/{1} critical validation instruction sites\n• License Identity: Active & Verified (Licensed to: {2})\n• About Dialog: Permanent Full Registered License active\n• Counterfeit serial dialogs and watchdog traps completely neutralized!");
+            Add("Dlg.Patch.Active.Title", "补丁已生效", "Patch Already Active");
+            Add("Dlg.Patch.Active.Msg", "项目D.exe 补丁与授权已处于激活状态！\n\n• 全部 {0} 处核心校验逻辑均已就绪\n• 授权身份：已登记 ({1})\n• 关于界面：终身许可，零弹窗骚扰\n\n如需更改显示的授权人姓名，请使用模式三（个性化授权登记）。", "项目D.exe patch and license are already fully active!\n\n• All {0} critical validation sites verified in patched state\n• License Identity: Registered ({1})\n• About Dialog: Lifetime license with zero nag popups\n\nTo update the displayed licensee name, please use Mode 3 (Custom Registration).");
+            Add("Dlg.Patch.Error.Title", "解锁异常", "Unlock Exception");
+            Add("Dlg.Patch.Error.Msg", "底层指令优化未能完成，已自动放弃写入（项目D.exe 未被修改）。\n\n最常见原因：当前 项目D 版本不在本工具补丁指纹支持范围内\n（本工具仅适配 项目D {0}）。\n\n请查看控制台日志确认具体原因。建议改用【模式二：永久冻结试用期】\n或【模式三：个性化授权登记】。\n\n若确为权限问题，请以管理员身份运行并暂时关闭安全防护软件。", "Underlying binary modification could not complete; write aborted with zero changes (项目D.exe unaltered).\n\nMost common cause: Installed 项目D build is outside supported signature matrix\n(Supported: 项目D {0}).\n\nCheck console log for details. Recommended alternatives: [Mode 2: Permanent Trial Freeze] or [Mode 3: Custom Registration].\n\nIf caused by permission limits, run as Administrator and temporarily disable antivirus protection.");
+
+            Add("Dlg.Trial.Success.Title", "试用期冻结成功", "Trial Frozen Successfully");
+            Add("Dlg.Trial.Success.Msg", "项目D 试用期已成功永久冻结！\n\n• 已通过 Windows ACL 权限锁定 {0} 处试用策略键\n• 试用状态：永久锁定在剩余 30 天，零弹窗骚扰\n• 核心优势：完全未修改任何二进制，支持官方在线静默更新！\n\n若后续需出厂重置或改用其他激活模式，可随时使用模式四或还原功能。", "项目D Evaluation Trial Frozen Successfully!\n\n• Locked {0} evaluation CLSID registry keys via Windows ACL permissions\n• Evaluation Status: Fixed permanently at 30 days remaining\n• Key Advantage: Zero binary modifications, fully compatible with official in-app updates!\n\nTo revert or switch modes later, use Mode 4 or the Revert function at any time.");
+            Add("Dlg.Trial.Warning.Title", "冻结提示", "Freeze Notice");
+            Add("Dlg.Trial.Warning.Msg", "未能成功锁定试用策略键，详情请查看控制台日志。\n\n建议确保以管理员权限运行，并在退出安全防护软件拦截后重试。", "Failed to lock evaluation policy keys. Please review the console log.\n\nEnsure tool is running with Administrator privileges and security software is not blocking registry access.");
+
+            Add("Dlg.Register.Success.Title", "授权与解锁成功", "Registration Succeeded");
+            Add("Dlg.Register.Success.Msg", "项目D 个性化授权信息已成功写入！\n\n• 登记姓名：{0}\n• 绑定邮箱：{1}\n• 授权证书：{2}\n\n已自动联动应用底层深度解锁，彻底杜绝假冒序列号弹窗！", "Custom Registration Applied Successfully!\n\n• Licensee Name: {0}\n• Bound Email: {1}\n• License Key: {2}\n\nUnderlying deep unlocking hooks synchronized to eliminate all fake serial popups!");
+            Add("Dlg.Register.Error.Title", "授权写入失败", "Registration Failed");
+            Add("Dlg.Register.Error.Msg", "写入授权信息失败，请查看控制台详细日志！", "Failed to apply registration credentials. Please review the console log for details!");
+
+            Add("Dlg.Reset.Confirm.Title", "出厂重置确认", "Factory Reset Confirmation");
+            Add("Dlg.Reset.Confirm.Msg", "确定要彻底清理所有授权记录残留与历史试用标记吗？\n\n• 执行后 项目D 将恢复为全新出厂纯净试用状态\n• 抹除所有注册表黑名单标记与试用期锁定特征", "Are you sure you want to purge all registration state and evaluation markers?\n\n• 项目D will be restored to a clean post-installation trial baseline\n• All registry blacklist markers and trial locks will be eliminated");
+            Add("Dlg.Reset.Success.Title", "出厂重置完成", "Factory Reset Complete");
+            Add("Dlg.Reset.Success.Msg", "项目D 已成功完成出厂纯净重置！\n\n• 已清除关联配置项: {0} 处\n• 已重置试用策略键: {1} 处\n\n所有封禁与过期弹窗记录已被彻底清除。", "项目D factory reset completed successfully!\n\n• Cleaned registry settings: {0} entries\n• Reset evaluation policy keys: {1} entries\n\nAll blacklist and expired evaluation markers purged.");
+            Add("Dlg.Reset.Error.Title", "重置失败", "Reset Failed");
+            Add("Dlg.Reset.Error.Msg", "执行出厂重置失败:\n\n{0}", "Factory reset failed:\n\n{0}");
+
+            Add("Dlg.Restore.Confirm.Title", "还原确认", "Restoration Confirmation");
+            Add("Dlg.Restore.Confirm.Msg", "确定要将 项目D 主程序还原为官方原版并清除全部授权信息吗？\n\n• 主程序将从 项目D.exe.BAK 备份文件无损恢复\n• 注册表授权登记与策略将被彻底清空\n• 恢复后软件将回归官方未激活评估状态", "Are you sure you want to restore official stock binary and clear all registration data?\n\n• 项目D.exe will be reverted from 项目D.exe.BAK backup\n• Registration credentials and policies will be wiped\n• Application will return to official unactivated evaluation state");
+            Add("Dlg.Restore.Success.Title", "一键还原成功", "Restoration Complete");
+            Add("Dlg.Restore.Success.Msg", "已成功还原为官方原版与初始配置！\n\n• 主程序 项目D.exe 已还原为官方未修改原版\n• 授权登记信息（姓名/邮箱/序列号）已全部清除\n• 运行状态已恢复为官方未注册/试用状态", "Official Stock Binary Restored Successfully!\n\n• Executable 项目D.exe reverted to clean unpatched binary\n• License registration credentials purged\n• Evaluation state restored to official stock trial baseline");
+            Add("Dlg.Restore.Warning.Title", "还原提示", "Restoration Notice");
+            Add("Dlg.Restore.Warning.Msg", "还原过程中发生异常，详情请查看控制台输出日志！", "An anomaly occurred during restoration. Please check console log for details!");
+
+            // --- CLI 模式 ---
+            Add("CLI.Title", "        项目D Pro Tool - Native Engine (CLI)        ", "        项目D Pro Tool - Native Engine (CLI)        ");
+            Add("CLI.SupportedOpts", "支持命令行选项：", "Supported CLI options:");
+            Add("CLI.OptPatch", "  -patch                执行模式一：底层深度解锁（AOB 特征码扫描 16 处校验点修补与签名剥离）", "  -patch                Execute Mode 1: Rapid Deep Unlock (AOB 16-site patching & cert strip)");
+            Add("CLI.OptFreeze", "  -freeze               执行模式二：永久冻结试用期（Windows ACL 锁定时间戳与 CLSID）", "  -freeze               Execute Mode 2: Permanent Trial Freeze (Windows ACL evaluation lock)");
+            Add("CLI.OptRegister", "  -register [name] [email] [serial]  执行模式三：个性化登记并联动解锁", "  -register [name] [email] [serial]  Execute Mode 3: Custom Registration & Unlock");
+            Add("CLI.OptRestore", "  -restore              执行一键还原官方原版主程序与官方未注册配置", "  -restore              Execute One-Click Stock Binary Restoration");
+            Add("CLI.OptSetPath", "  -setpath <dir/exe>    手动设定并持久化 项目D 安装目录或 项目D.exe 绝对路径", "  -setpath <dir/exe>    Set and persist custom 项目D installation directory or executable path");
+            Add("Err.PathEmpty", "选择的路径为空。", "The selected path is empty.");
+            Add("Err.NotIDMExe", "所选文件不是 项目D.exe 主程序。", "Selected file is not 项目D.exe executable.");
+            Add("Err.DirNotExist", "目标目录不存在: {0}", "Target directory does not exist: {0}");
+            Add("Err.ExeNotFoundInDir", "在目录 [{0}] 下未找到 项目D.exe 主程序文件！", "项目D.exe not found in directory [{0}]!");
+            Add("CLI.PathUsage", "Error: 请提供 项目D 目录或 项目D.exe 路径，例如: -setpath \"D:\\Software\\项目D\"", "Error: Provide 项目D directory or 项目D.exe path, e.g.: -setpath \"D:\\Software\\项目D\"");
+
+            Add("Diag.NotFound", "目标文件不存在", "Target file does not exist");
+            Add("Diag.ZeroBytes", "文件长度为 0 字节（极可能被杀毒软件查杀/隔离后残留空文件）", "File size is 0 bytes (likely quarantined by antivirus)");
+            Add("Diag.ReadFailed", "读取失败: {0}", "Read failed: {0}");
+
+            Add("Pe.TooSmall", "文件体积过小，不是有效的 PE 映像", "File size too small; not a valid PE image");
+            Add("Pe.MissingMZ", "缺少 MZ 头，不是有效的 Win32 可执行文件", "Missing MZ header; not a valid Win32 executable");
+            Add("Pe.BadLfanew", "DOS 头 e_lfanew 偏移越界", "DOS header e_lfanew offset out of bounds");
+            Add("Pe.MissingPE", "缺少 PE 签名，映像已损坏", "Missing PE signature; image is corrupted");
+            Add("Pe.BadCoff", "COFF 文件头越界", "COFF file header out of bounds");
+            Add("Pe.BadNsec", "节区数量异常 ({0})", "Abnormal section count ({0})");
+            Add("Pe.BadOptSz", "可选头长度异常 ({0})", "Optional header length abnormal ({0})");
+            Add("Pe.BadMagic", "可选头 Magic 异常 (0x{0})，不是标准 PE 映像", "Optional header Magic abnormal (0x{0}); not a standard PE image");
+            Add("Pe.BadSecTab", "节区表越界，映像已被截断损坏", "Section table out of bounds; image truncated or damaged");
+            Add("Pe.BadSecHeader", "第 {0} 个节区头字段非法", "Section #{0} header fields invalid");
+            Add("Pe.SecOutOfFile", "节区 [{0}] 原始数据超出文件末尾（需要 {1} 字节，实际 {2} 字节）—— 映像已被截断损坏", "Section [{0}] raw data exceeds end of file (needs {1} bytes, actual {2} bytes) - Image truncated and corrupted");
+        }
+
+
+        public static string TranslateLog(string msg)
+        {
+            if (string.IsNullOrEmpty(msg) || Current == AppLanguage.Zh) return msg;
+
+            // 1. 横幅与主标题行
+            if (msg.Contains("开始执行模式一：极速深度解锁")) return "================= Executing Mode 1: Rapid Deep Unlock =================";
+            if (msg.Contains("开始执行模式二：一键永久冻结试用期")) return "================= Executing Mode 2: Permanent Trial Freeze =================";
+            if (msg.Contains("开始执行模式三：个性化授权登记")) return "================= Executing Mode 3: Custom Identity Registration =================";
+            if (msg.Contains("开始执行模式四：全量清理出厂重置")) return "================= Executing Mode 4: Factory Reset & State Cleanup =================";
+            if (msg.Contains("开始执行：一键还原官方原版与初始配置")) return "================= Executing: One-Click Stock Binary Restoration =================";
+            if (msg.Contains("二进制补丁引擎 (AOB 特征码版 v3)")) return "──────── Binary Patch Engine (AOB Pattern Scan v3) ────────";
+
+            string s = msg;
+
+            // 2. 补丁点名称
+            s = s.Replace("授权分支检测 (test eax->xor eax)", "License branch check (test eax->xor eax)")
+                 .Replace("试用期最大值 (->mov eax,7FFFFFFF+nop)", "Trial maximum value (->mov eax,7FFFFFFF+nop)")
+                 .Replace("假序列号弹窗 A (jz->jmp)", "Counterfeit serial popup A (jz->jmp)")
+                 .Replace("守护线程 A", "Watchdog thread A")
+                 .Replace("守护线程 B", "Watchdog thread B")
+                 .Replace("守护线程 C", "Watchdog thread C")
+                 .Replace("守护线程 D", "Watchdog thread D")
+                 .Replace("看门狗关联函数", "Watchdog helper function")
+                 .Replace("守护线程 E (push ebp->ret)", "Watchdog thread E (push ebp->ret)")
+                 .Replace("守护线程 F", "Watchdog thread F")
+                 .Replace("过期强退逻辑 (0F85->90E9)", "Expiration termination logic (0F85->90E9)")
+                 .Replace("联网验证标志位", "Online validation flag")
+                 .Replace("假序列号弹窗 B (jz->jmp)", "Counterfeit serial popup B (jz->jmp)")
+                 .Replace("试用状态标志 + 天数限制常量", "Trial flag + duration limit constants")
+                 .Replace("注册对话框抑制 (Serial缺失分支, 可选)", "Registration dialog bypass (missing serial branch, optional)")
+                 .Replace("启动自动更新定时器切断 (jne->jmp, 彻底杜绝后台更新)", "Startup auto-update timer cutoff (jne->jmp)");
+
+            // 3. 诊断与前置校验日志
+            s = s.Replace("✗ 启动前体检未通过：", "✗ Pre-launch diagnostic failed: ");
+            s = s.Replace("  目标路径: ", "  Target path: ");
+            s = s.Replace("目标文件不存在", "Target file does not exist");
+            s = s.Replace("文件长度为 0 字节（极可能被杀毒软件查杀/隔离后残留空文件）", "File size is 0 bytes (likely quarantined by antivirus)");
+            s = s.Replace("文件体积过小，不是有效的 PE 映像", "File size too small; not a valid PE image");
+            s = s.Replace("缺少 MZ 头，不是有效的 Win32 可执行文件", "Missing MZ header; not a valid Win32 executable");
+            s = s.Replace("DOS 头 e_lfanew 偏移越界", "DOS header e_lfanew offset out of bounds");
+            s = s.Replace("缺少 PE 签名，映像已损坏", "Missing PE signature; image is corrupted");
+            s = s.Replace("COFF 文件头越界", "COFF file header out of bounds");
+            s = s.Replace("可选头 Magic 异常 (0x", "Optional header Magic abnormal (0x");
+            s = s.Replace("可选头长度异常 (", "Optional header length abnormal (");
+            s = s.Replace("节区表越界，映像已被截断损坏", "Section table out of bounds; image truncated or damaged");
+            s = s.Replace("节区数量异常 (", "Abnormal section count (");
+            s = s.Replace(" 字节）—— 映像已被截断损坏", " bytes) - Image truncated and corrupted");
+            s = s.Replace(" 字节，实际 ", " bytes, actual ");
+            s = s.Replace("] 原始数据超出文件末尾（需要 ", "] Raw data exceeds end of file (requires ");
+
+            // 4. 补丁引擎核心执行日志
+            s = s.Replace("✓ 补丁写入 [", "✓ Applied patch [");
+            s = s.Replace("→ 已处于补丁状态，跳过: ", "→ Already in patched state, skipping: ");
+            s = s.Replace("  – 跳过可选位点（本版本无此逻辑）: ", "  – Skipping optional site (not present in this release): ");
+            s = s.Replace("  ✗ 未找到特征码: ", "  ✗ Pattern signature not found: ");
+            s = s.Replace("  ✗ 特征码非唯一命中: ", "  ✗ Pattern signature matched multiple locations: ");
+            s = s.Replace("  ✗ 位点越界: ", "  ✗ Site out of bounds: ");
+            s = s.Replace("  ✗ 位点字节与期望不符: ", "  ✗ Site bytes mismatch expected value: ");
+            s = s.Replace("✓ PE 结构校验通过（节区 ", "✓ PE structural validation passed (Sections: ");
+            s = s.Replace(" 个，映像末尾 ", ", Image End ");
+            s = s.Replace("）", ")");
+            s = s.Replace("  正在执行 AOB 特征码扫描（支持版本：", "  Scanning AOB pattern signatures (Supported: ");
+            s = s.Replace("）...", ")...");
+            s = s.Replace("✓ AOB 扫描全部命中 ", "✓ AOB scan matched all ");
+            s = s.Replace("（已补丁 ", " (Patched: ");
+            s = s.Replace(" 处 / 待补丁 ", ", Pending: ");
+            s = s.Replace(" 处）", ")");
+            s = s.Replace("✓ 已清除 PE 数字签名目录（偏移 ", "✓ Cleared PE security directory (Offset: ");
+            s = s.Replace("，原 RVA=", ", Original RVA=");
+            s = s.Replace("→ PE 数字签名目录本就不存在，无需清除", "→ PE security directory does not exist, no clearing needed");
+            s = s.Replace("✓ 已剥离 Authenticode 签名尾部 ", "✓ Stripped Authenticode signature overlay: ");
+            s = s.Replace(" 字节（动态计算，非硬编码）", " bytes (dynamically computed)");
+            s = s.Replace("✓ 已剥离映像尾部冗余数据 ", "✓ Stripped redundant overlay data: ");
+            s = s.Replace(" 字节", " bytes");
+            s = s.Replace("✓ 已重算 PE 校验和：", "✓ Recomputed PE checksum: ");
+            s = s.Replace("（标准算法动态计算）", " (Microsoft standard algorithm)");
+            s = s.Replace("★ 底层二进制补丁写入完成！共 ", "★ Binary patching completed! Total ");
+            s = s.Replace(" 个位点生效。", " sites active.");
+            s = s.Replace("  落盘 SHA256: ", "  Output SHA256: ");
+            s = s.Replace("  落盘体积  : ", "  Output size  : ");
+
+            // 5. 备份与还原
+            s = s.Replace("✓ 已自动备份原版至: ", "✓ Created clean stock backup: ");
+            s = s.Replace("→ 已有同版本官方原版备份（v", "→ Clean stock backup already exists for version v");
+            s = s.Replace("），保持不动", "), preserved without changes");
+            s = s.Replace("⚠ 备份版本不一致：当前 项目D.exe = v", "⚠ Backup version mismatch: Current 项目D.exe = v");
+            s = s.Replace("，现有 项目D.exe.BAK = v", ", Existing 项目D.exe.BAK = v");
+            s = s.Replace("未知", "Unknown");
+            s = s.Replace("✗ 当前 项目D.exe 并非纯净原版（已含补丁），无法作为新备份源。", "✗ Current 项目D.exe is not clean stock (already patched); cannot be used as backup source.");
+            s = s.Replace("  ★ 若继续，回滚点将指向错误版本。为安全起见已中止。", "  ★ Aborted to prevent rollback point pointing to mismatched version.");
+            s = s.Replace("  ★ 请先重新安装当前版本的 项目D，或手动将官方原版另存为: ", "  ★ Reinstall official 项目D or manually save clean stock binary to: ");
+            s = s.Replace("→ 旧版备份已归档为: ", "→ Archived legacy backup to: ");
+            s = s.Replace("⚠ 旧备份归档失败（将继续覆盖）: ", "⚠ Failed to archive legacy backup (will overwrite): ");
+            s = s.Replace("✓ 已更新官方原版备份至当前版本 v", "✓ Updated official stock backup to current version v");
+            s = s.Replace("✗ 写入新备份失败，为安全起见中止补丁: ", "✗ Failed to write new backup, patching aborted: ");
+            s = s.Replace("✓ 已自动回滚至补丁前状态", "✓ Automatically rolled back to pre-patch state");
+            s = s.Replace("✓ 已自动回滚，项目D.exe 恢复至补丁前状态", "✓ Automatically rolled back; 项目D.exe restored to pre-patch state");
+            s = s.Replace("✓ 已自动回滚", "✓ Automatically rolled back");
+
+            s = s.Replace("正在检测并强行终止后台运行的 项目D 进程...", "Detecting and terminating background 项目D processes...");
+            s = s.Replace("已成功终止 ", "Successfully terminated ");
+            s = s.Replace(" 个正在运行的 项目D 进程。", " running 项目D processes.");
+            s = s.Replace("✗ 拒绝还原：备份版本与当前安装版本不一致！", "✗ Restoration rejected: Backup version does not match current installation!");
+            s = s.Replace("    当前 项目D.exe   = v", "    Current 项目D.exe   = v");
+            s = s.Replace("    现有 项目D.exe.BAK = v", "    Existing 项目D.exe.BAK = v");
+            s = s.Replace("  ★ 直接还原会把旧版主程序覆盖到新版安装上，导致程序异常。", "  ★ Restoring will overwrite newer installation with older binary, causing runtime mismatch.");
+            s = s.Replace("  ★ 请重新安装当前版本的 项目D，或手动指定正确的官方原版备份。", "  ★ Please reinstall current 项目D build or specify the correct clean stock backup.");
+            s = s.Replace("✓ 官方原版主程序已成功无损还原！(项目D.exe.BAK -> 项目D.exe, v", "✓ Official stock binary restored successfully! (项目D.exe.BAK -> 项目D.exe, v");
+            s = s.Replace("还原主程序文件失败 (请确认以管理员身份运行): ", "Failed to restore executable (ensure running as Administrator): ");
+            s = s.Replace("提示：未检测到官方原版备份文件 (项目D.exe.BAK)，跳过文件覆盖。", "Notice: Official stock backup (项目D.exe.BAK) not detected, skipping file copy.");
+            s = s.Replace("✓ 已彻底抹除注册表授权登记项 (FName/Email/Serial等共 ", "✓ Completely wiped registry registration entries (total ");
+            s = s.Replace(" 项)", " entries)");
+            s = s.Replace("✓ 已同步解除 ACL 权限锁定并清理试用特征项 ", "✓ Unlocked ACL permissions and purged evaluation markers: ");
+            s = s.Replace("✓ 注册表授权配置已彻底重置为【官方未注册原版】状态！", "✓ Registry configuration restored to official unactivated stock baseline!");
+            s = s.Replace("✓ 一键还原官方操作完成。", "✓ Stock restoration completed successfully.");
+
+            // 6. 各模式详细操作流程日志
+            s = s.Replace("错误：未找到 项目D.exe，请先确认 项目D 是否已安装。", "Error: 项目D.exe not found. Please confirm 项目D is installed.");
+            s = s.Replace("✓ 已同步点亮终身授权登记：授权姓名 [", "✓ Synchronized lifetime license identity: Name [");
+            s = s.Replace("]，绑定邮箱 [", "], Bound Email [");
+            s = s.Replace("✓ 已同步清理注册表残留假序列号与黑名单字段，关闭自动更新", "✓ Cleaned residual counterfeit serials & blacklist telemetry; disabled auto-updates");
+            s = s.Replace("✓ 模式一执行完成：已彻底消除假冒序列号弹窗与防逆向看门狗拦截！", "✓ Mode 1 completed: Counterfeit serial popups and anti-reversing watchdog neutralized!");
+            s = s.Replace("  共完成 ", "  Completed ");
+            s = s.Replace(" 处核心校验逻辑升级（共 ", " core validation upgrades (total ");
+            s = s.Replace(" 个补丁位点）", " patch sites)");
+            s = s.Replace("✓ 模式一检测：项目D.exe 已包含全部优化特征，补丁已生效，已确保终身授权身份就绪。", "✓ Mode 1 verified: 项目D.exe contains all patch signatures; lifetime entitlement active.");
+            s = s.Replace("模式一执行遇到异常，详情请查看上方日志。", "Mode 1 encountered an exception; check console log for details.");
+
+            s = s.Replace("步骤 1/4: 正在安全终止后台运行的 项目D 监控与下载进程...", "Step 1/4: Safely terminating background 项目D monitoring and download processes...");
+            s = s.Replace("步骤 2/4: 正在清理历史授权追踪与黑名单遥测项，同步底层驱动策略...", "Step 2/4: Cleaning historical tracking and blacklist telemetry; synchronizing driver policies...");
+            s = s.Replace("✓ 已清理旧试用与过期特征项共 ", "✓ Cleaned legacy trial and expired feature markers total ");
+            s = s.Replace("步骤 3/4: 触发 项目D 引擎初始化全新 30 天官方评估基线...", "Step 3/4: Triggering 项目D engine to initialize fresh 30-day official evaluation baseline...");
+            s = s.Replace("正在唤醒 项目D 初始化全新 30 天试用基线...", "Waking 项目D to initialize fresh 30-day evaluation baseline...");
+            s = s.Replace("步骤 4/4: 正在通过 Windows ACL 权限机制锁定试用策略键...", "Step 4/4: Write-protecting trial policy keys via Windows ACL permissions...");
+            s = s.Replace("已解除锁定并清除旧试用特征项: ", "Unlocked and purged legacy trial marker: ");
+            s = s.Replace("✓ 已通过 ACL 权限锁定试用项: ", "✓ Write-protected trial key via ACL: ");
+            s = s.Replace("★ 永久冻结试用期成功！共锁定 ", "★ Trial frozen successfully! Total ");
+            s = s.Replace(" 处核心 CLSID 试用时间策略键。", " critical evaluation CLSID policy keys locked.");
+            s = s.Replace("✓ 运行状态：试用倒计时永久停留在剩余 30 天，无任何弹窗骚扰。", "✓ Status: Evaluation countdown permanently held at 30 days remaining with zero popups.");
+            s = s.Replace("✓ 升级兼容：未修改任何二进制文件，完全兼容 项目D 官方无缝在线静默更新！", "✓ Compatibility: Zero binary modifications, fully compatible with official in-app updates!");
+
+            s = s.Replace("登记姓名: ", "Licensee Name: ");
+            s = s.Replace("绑定邮箱: ", "Bound Email: ");
+            s = s.Replace("授权证书: ", "License Key: ");
+            s = s.Replace("正在自动联动执行【模式一：底层深度解锁】以杜绝假冒序列号弹窗...", "Automatically coordinating Mode 1 (Rapid Deep Unlock) to prevent counterfeit serial popups...");
+            s = s.Replace("✓ 成功将登记信息写入注册表 (HKCU\\Software\\DownloadManager)", "✓ Successfully wrote registration credentials to registry (HKCU\\Software\\DownloadManager)");
+            s = s.Replace("  授权姓名: ", "  Licensed Name: ");
+            s = s.Replace("  绑定邮箱: ", "  Bound Email: ");
+            s = s.Replace("✓ 模式三执行完毕：底层免弹窗补丁与关于窗口已同步点亮！", "✓ Mode 3 completed: Low-level patch active, About dialog displays full registration!");
+
+            s = s.Replace("✓ 官方原版主程序已同步无损恢复 (项目D.exe.BAK -> 项目D.exe)", "✓ Official stock binary restored (项目D.exe.BAK -> 项目D.exe)");
+            s = s.Replace("已抹除 DownloadManager 残留项: ", "Erased residual DownloadManager entry: ");
+            s = s.Replace("✓ 第一阶段：已抹除 DownloadManager 配置关联项 ", "✓ Phase 1: Wiped DownloadManager configuration entries: ");
+            s = s.Replace("✓ 第二阶段：已解除锁定并清理 CLSID 试用策略项 ", "✓ Phase 2: Unlocked and purged CLSID evaluation policy entries: ");
+            s = s.Replace("✓ 模式四执行完毕：项目D 授权与黑名单数据已彻底消除，成功恢复出厂纯净状态！", "✓ Mode 4 completed: Registration and blacklist data wiped, restored to factory baseline!");
+
+            // 7. 快捷工具与策略交互日志
+            s = s.Replace("运行状态仪表盘与系统信息已刷新完成。当前路径: ", "Dashboard status and system information refreshed. Current path: ");
+            s = s.Replace("✓ 已成功手动定位 项目D 路径: ", "✓ Custom 项目D path located and saved: ");
+            s = s.Replace("定位 项目D 路径失败: ", "Failed to locate 项目D path: ");
+            s = s.Replace("已启动 项目D 应用程序。", "Started 项目D application.");
+            s = s.Replace("✗ 启动 项目D 失败: ", "✗ Failed to start 项目D: ");
+            s = s.Replace("未找到 项目D.exe 主程序，请尝试点击【手动定位 项目D 路径】。", "项目D.exe not found; try clicking [Custom 项目D Path].");
+            s = s.Replace("已成功导出 项目D 注册表配置至桌面: ", "Exported 项目D registry configuration to desktop: ");
+            s = s.Replace("已启动 Windows 注册表编辑器。", "Launched Windows Registry Editor.");
+            s = s.Replace("已在资源管理器中打开 项目D 安装目录: ", "Opened 项目D installation directory in Explorer: ");
+            s = s.Replace("操作异常: ", "Operation exception: ");
+            s = s.Replace("✓ 已启用自动更新屏蔽策略：CheckUpdtVM = 0 (已阻断启动自动检测与升级弹窗)", "✓ Enabled auto-update suppression policy: CheckUpdtVM = 0");
+            s = s.Replace("✓ 已恢复 项目D 官方自动更新检查：CheckUpdtVM = 1", "✓ Restored official 项目D auto-update check: CheckUpdtVM = 1");
+            s = s.Replace("更新策略设置失败: ", "Failed to set update policy: ");
+            s = s.Replace("错误: 未找到系统 hosts 文件: ", "Error: System hosts file not found: ");
+            s = s.Replace("✓ 已成功将 项目D 官方黑名单与验证服务器重定向至 127.0.0.1 (系统 hosts 防护已生效)", "✓ Redirected 项目D verification servers to 127.0.0.1 (Hosts shield active)");
+            s = s.Replace("✓ 已成功从系统 hosts 中移除 项目D 验证服务器拦截规则", "✓ Removed 项目D intercept rules from system hosts");
+            s = s.Replace("配置 Hosts 失败: ", "Failed to configure hosts: ");
+            s = s.Replace(" (请确认以管理员特权运行)", " (ensure running with Administrator privileges)");
+            s = s.Replace(" 处", " entries");
+
+            return s;
+        }
+
+    }
+
     public class Program
     {
         [DllImport("kernel32.dll")]
@@ -112,14 +615,29 @@ namespace IDM_Toolkit_Wpf
                     Console.WriteLine("        项目D Pro Tool - Native Engine (CLI)        ");
                     Console.WriteLine("==================================================");
 
+                    if (firstArg == "-lang" || firstArg == "/lang")
+                    {
+                        if (args.Length > 1 && (args[1].ToLowerInvariant() == "en" || args[1].ToLowerInvariant() == "zh"))
+                        {
+                            I18n.SetLanguage(args[1].ToLowerInvariant() == "en" ? AppLanguage.En : AppLanguage.Zh);
+                            Console.WriteLine("Language set to: " + (I18n.Current == AppLanguage.En ? "English" : "简体中文"));
+                        }
+                        else
+                        {
+                            Console.WriteLine("Usage: -lang <zh|en>");
+                        }
+                        return;
+                    }
+
                     if (firstArg == "-help" || firstArg == "/help" || firstArg == "/?")
                     {
-                        Console.WriteLine("支持命令行选项：");
-                        Console.WriteLine("  -patch                执行模式一：底层深度解锁（AOB 特征码扫描 16 处校验点修补与签名剥离）");
-                        Console.WriteLine("  -freeze               执行模式二：永久冻结试用期（Windows ACL 锁定时间戳与 CLSID）");
-                        Console.WriteLine("  -register [name] [email] [serial]  执行模式三：个性化登记并联动解锁");
-                        Console.WriteLine("  -restore              执行一键还原官方原版主程序与官方未注册配置");
-                        Console.WriteLine("  -setpath <dir/exe>    手动设定并持久化 项目D 安装目录或 项目D.exe 绝对路径");
+                        Console.WriteLine(I18n.T("CLI.SupportedOpts"));
+                        Console.WriteLine(I18n.T("CLI.OptPatch"));
+                        Console.WriteLine(I18n.T("CLI.OptFreeze"));
+                        Console.WriteLine(I18n.T("CLI.OptRegister"));
+                        Console.WriteLine(I18n.T("CLI.OptRestore"));
+                        Console.WriteLine(I18n.T("CLI.OptSetPath"));
+                        Console.WriteLine(I18n.T("CLI.OptLang"));
                         return;
                     }
 
@@ -136,7 +654,7 @@ namespace IDM_Toolkit_Wpf
                         }
                         else
                         {
-                            Console.WriteLine("Error: 请提供 项目D 目录或 项目D.exe 路径，例如: -setpath \"D:\\Software\\项目D\"");
+                            Console.WriteLine(I18n.T("CLI.PathUsage"));
                         }
                         return;
                     }
@@ -176,10 +694,16 @@ namespace IDM_Toolkit_Wpf
                 }
             }
 
+            int startTab = 0;
+            if (args != null && args.Length > 0 && (args[0] == "-tab" || args[0] == "/tab") && args.Length > 1)
+            {
+                int.TryParse(args[1], out startTab);
+            }
+
             try
             {
                 Application app = new Application();
-                app.Run(new MainWindow());
+                app.Run(new MainWindow(startTab));
             }
             catch (Exception ex)
             {
@@ -519,18 +1043,18 @@ namespace IDM_Toolkit_Wpf
 
             if (type == ModernDialogType.Question)
             {
-                Button btnCancel = CreateModernButton("取消", Color.FromRgb(33, 38, 45), Color.FromRgb(48, 54, 61), 86, 32, 6, Color.FromRgb(201, 209, 217), 11.5, false, Color.FromRgb(60, 66, 75), 1);
+                Button btnCancel = CreateModernButton(I18n.T("Dlg.BtnCancel"), Color.FromRgb(33, 38, 45), Color.FromRgb(48, 54, 61), 86, 32, 6, Color.FromRgb(201, 209, 217), 11.5, false, Color.FromRgb(60, 66, 75), 1);
                 btnCancel.Margin = new Thickness(0, 0, 10, 0);
                 btnCancel.Click += (s, e) => { this.Confirmed = false; this.Close(); };
                 btnRow.Children.Add(btnCancel);
 
-                Button btnConfirm = CreateModernButton("确认继续", accentColor, Color.FromArgb(220, accentColor.R, accentColor.G, accentColor.B), 96, 32, 6, Colors.White, 11.5, true, Colors.Transparent, 0);
+                Button btnConfirm = CreateModernButton(I18n.T("Dlg.BtnConfirm"), accentColor, Color.FromArgb(220, accentColor.R, accentColor.G, accentColor.B), 96, 32, 6, Colors.White, 11.5, true, Colors.Transparent, 0);
                 btnConfirm.Click += (s, e) => { this.Confirmed = true; this.Close(); };
                 btnRow.Children.Add(btnConfirm);
             }
             else
             {
-                string btnText = (type == ModernDialogType.Success) ? "确定完成" : "我知道了";
+                string btnText = (type == ModernDialogType.Success) ? I18n.T("Dlg.BtnOk") : I18n.T("Dlg.BtnGotIt");
                 Button btnOk = CreateModernButton(btnText, accentColor, Color.FromArgb(220, accentColor.R, accentColor.G, accentColor.B), 108, 34, 6, Colors.White, 12, true, Colors.Transparent, 0);
                 btnOk.Click += (s, e) => { this.Confirmed = true; this.Close(); };
                 btnRow.Children.Add(btnOk);
@@ -608,6 +1132,29 @@ namespace IDM_Toolkit_Wpf
 
     public class MainWindow : Window
     {
+        private int _currentTabIndex = 0;
+
+        private void RebuildUI()
+        {
+            int curTab = _currentTabIndex;
+            string existingLog = (txtConsole != null) ? txtConsole.Text : null;
+            this.Title = I18n.T("App.Title");
+            BuildUI();
+            if (existingLog != null && txtConsole != null)
+            {
+                if (existingLog.Contains("[系统初始化]") || existingLog.Contains("[System Init]"))
+                {
+                    txtConsole.Text = I18n.T("Log.Greeting");
+                }
+                else
+                {
+                    txtConsole.Text = existingLog;
+                }
+            }
+            SwitchTab(curTab);
+            RefreshAllStatus();
+        }
+
         #region DWM 沉浸式暗黑标题栏 Win32 API
 
         [DllImport("dwmapi.dll", PreserveSig = true)]
@@ -700,9 +1247,11 @@ namespace IDM_Toolkit_Wpf
         private static readonly Color ColRoseBadgeBg = Color.FromRgb(76, 5, 25);     // #4C0519
         private static readonly Color ColRoseBadgeFg = Color.FromRgb(251, 113, 133); // #FB7185
 
-        public MainWindow()
+        public MainWindow() : this(0) { }
+
+        public MainWindow(int initialTab)
         {
-            this.Title = "项目D Pro Tool";
+            this.Title = I18n.T("App.Title");
             this.Width = 1140;
             this.Height = 820;
             this.MinWidth = 1100;
@@ -724,6 +1273,7 @@ namespace IDM_Toolkit_Wpf
             catch { }
 
             BuildUI();
+            if (initialTab > 0 && initialTab < 3) SwitchTab(initialTab);
             RefreshAllStatus();
         }
 
@@ -764,8 +1314,13 @@ namespace IDM_Toolkit_Wpf
             sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) }); // Spacer
             sidebarGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto }); // Admin Badge
 
-            // --- 顶部 Brand 区域 ---
+            // --- 顶部 Brand 区域 (含语言切换胶囊按钮) ---
             StackPanel brandBox = new StackPanel { Margin = new Thickness(0, 0, 0, 18) };
+
+            Grid brandGrid = new Grid();
+            brandGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            brandGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
             StackPanel titleRow = new StackPanel { Orientation = Orientation.Horizontal };
 
             // 尝试加载精美内嵌优化图标
@@ -810,13 +1365,35 @@ namespace IDM_Toolkit_Wpf
 
             titleRow.Children.Add(new TextBlock
             {
-                Text = "项目D Pro Tool",
+                Text = I18n.T("App.Title"),
                 FontSize = 20,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252)),
                 VerticalAlignment = VerticalAlignment.Center
             });
-            brandBox.Children.Add(titleRow);
+            Grid.SetColumn(titleRow, 0);
+            brandGrid.Children.Add(titleRow);
+
+            Button btnLangToggle = CreateCustomButton(
+                I18n.T("Brand.LangToggle"),
+                Color.FromRgb(30, 41, 59),
+                Color.FromRgb(45, 55, 72),
+                double.NaN, 26, 6,
+                ColBlue, 11, true,
+                ColBorderMuted, 1
+            );
+            btnLangToggle.Padding = new Thickness(10, 2, 10, 2);
+            btnLangToggle.VerticalAlignment = VerticalAlignment.Center;
+            btnLangToggle.ToolTip = I18n.T("Brand.LangTooltip");
+            btnLangToggle.Click += (s, e) =>
+            {
+                I18n.SetLanguage(I18n.Current == AppLanguage.Zh ? AppLanguage.En : AppLanguage.Zh);
+                RebuildUI();
+            };
+            Grid.SetColumn(btnLangToggle, 1);
+            brandGrid.Children.Add(btnLangToggle);
+
+            brandBox.Children.Add(brandGrid);
 
             Border badgeBox = new Border
             {
@@ -828,7 +1405,7 @@ namespace IDM_Toolkit_Wpf
             };
             badgeBox.Child = new TextBlock
             {
-                Text = "PRO EDITION · v2026.1",
+                Text = I18n.T("Brand.Edition"),
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
@@ -851,7 +1428,7 @@ namespace IDM_Toolkit_Wpf
             StackPanel statStack = new StackPanel();
             statStack.Children.Add(new TextBlock
             {
-                Text = "🖥️ 系统状态仪表盘",
+                Text = I18n.T("Stat.DashboardTitle"),
                 FontSize = 12,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
@@ -863,11 +1440,11 @@ namespace IDM_Toolkit_Wpf
             statRows.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             for (int i = 0; i < 5; i++) statRows.RowDefinitions.Add(new RowDefinition { Height = new GridLength(24) });
 
-            lblStatInstall = AddStatusRow(statRows, "软件安装:", "检测中...", 0, Color.FromRgb(230, 237, 243));
-            lblStatVer = AddStatusRow(statRows, "内核版本:", "未知", 1, Color.FromRgb(201, 209, 217));
-            lblStatAuth = AddStatusRow(statRows, "授权状态:", "检测中", 2, ColBlue);
-            lblStatProc = AddStatusRow(statRows, "后台进程:", "检测中", 3, ColAmber);
-            lblStatPath = AddStatusRow(statRows, "主控路径:", "自动检测", 4, Color.FromRgb(139, 148, 158));
+            lblStatInstall = AddStatusRow(statRows, I18n.T("Stat.RowInstall"), I18n.T("Stat.InstallMissing"), 0, Color.FromRgb(230, 237, 243));
+            lblStatVer = AddStatusRow(statRows, I18n.T("Stat.RowVersion"), I18n.T("Stat.VersionUnknown"), 1, Color.FromRgb(201, 209, 217));
+            lblStatAuth = AddStatusRow(statRows, I18n.T("Stat.RowAuth"), I18n.T("Stat.AuthUndetected"), 2, ColBlue);
+            lblStatProc = AddStatusRow(statRows, I18n.T("Stat.RowProcess"), I18n.T("Stat.ProcessStopped"), 3, ColAmber);
+            lblStatPath = AddStatusRow(statRows, I18n.T("Stat.RowPath"), I18n.T("Stat.PathUndetected"), 4, Color.FromRgb(139, 148, 158));
 
             statStack.Children.Add(statRows);
             statusCard.Child = statStack;
@@ -877,7 +1454,7 @@ namespace IDM_Toolkit_Wpf
             // --- 快捷进程控制标题 ---
             TextBlock ctrlTitle = new TextBlock
             {
-                Text = "🛠️ 快捷进程控制",
+                Text = I18n.T("Ctrl.Title"),
                 FontSize = 12,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
@@ -888,7 +1465,13 @@ namespace IDM_Toolkit_Wpf
 
             // --- 5 个快捷控制按钮 ---
             StackPanel btnStack = new StackPanel();
-            string[] opNames = { "🔄 刷新运行状态", "📍 手动定位 项目D 路径", "⏹️ 强行终止 项目D 进程", "▶️ 启动 / 重启 项目D", "♻️ 一键还原官方原版" };
+            string[] opNames = {
+                I18n.T("Ctrl.BtnRefresh"),
+                I18n.T("Ctrl.BtnLocate"),
+                I18n.T("Ctrl.BtnKill"),
+                I18n.T("Ctrl.BtnStart"),
+                I18n.T("Ctrl.BtnRestore")
+            };
             for (int i = 0; i < opNames.Length; i++)
             {
                 Button btn = CreateCustomButton(opNames[i], ColBtnDark, ColBtnDarkHover, double.NaN, 34, 8, Color.FromRgb(240, 246, 252), 12, false, ColBorderMuted, 1);
@@ -912,7 +1495,7 @@ namespace IDM_Toolkit_Wpf
             };
             adminCard.Child = new TextBlock
             {
-                Text = "🛡️ 管理员特权已就绪 (UAC Admin)",
+                Text = I18n.T("Admin.Badge"),
                 FontSize = 11,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(63, 185, 80)),
@@ -979,9 +1562,9 @@ namespace IDM_Toolkit_Wpf
             tabGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             tabGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            tabBtn1 = CreateTabButton("⚡ 核心授权模式", true);
-            tabBtn2 = CreateTabButton("🛡️ 高级安全与策略", false);
-            tabBtn3 = CreateTabButton("📝 实时操作控制台", false);
+            tabBtn1 = CreateTabButton(I18n.T("Tab.Core"), true);
+            tabBtn2 = CreateTabButton(I18n.T("Tab.Adv"), false);
+            tabBtn3 = CreateTabButton(I18n.T("Tab.Log"), false);
 
             tabBtn1.Click += (s, e) => SwitchTab(0);
             tabBtn2.Click += (s, e) => SwitchTab(1);
@@ -1020,7 +1603,7 @@ namespace IDM_Toolkit_Wpf
 
             lblGlobalStatus = new TextBlock
             {
-                Text = "🟢 引擎就绪 · 所有模块加载正常",
+                Text = I18n.T("Bottom.Ready"),
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
                 VerticalAlignment = VerticalAlignment.Center
@@ -1050,6 +1633,7 @@ namespace IDM_Toolkit_Wpf
 
         private void SwitchTab(int index)
         {
+            _currentTabIndex = index;
             UpdateTabStyle(tabBtn1, index == 0);
             UpdateTabStyle(tabBtn2, index == 1);
             UpdateTabStyle(tabBtn3, index == 2);
@@ -1123,10 +1707,10 @@ namespace IDM_Toolkit_Wpf
 
             // 模式一
             panel.Children.Add(CreateModeCard(
-                "🔥 模式一：极速深度解锁",
-                "全自动秒解 · 终身免弹窗",
-                "• 核心原理：优化主程序底层指令，彻底阻断看门狗拦截、过期强退与假序列号校验。\n• 智能点亮：一键修补底层指令并同步赋予合规终身授权身份，彻底告别未注册提示。\n• 安全可靠：自动备份原版为 项目D.exe.BAK，随时支持一键无损还原官方原版。",
-                "⚡ 一键执行极速深度解锁",
+                I18n.T("Mode1.Title"),
+                I18n.T("Mode1.Badge"),
+                I18n.T("Mode1.Desc"),
+                I18n.T("Mode1.Btn"),
                 ColAmber,
                 ColAmberHover,
                 ColAmberBadgeBg,
@@ -1136,10 +1720,10 @@ namespace IDM_Toolkit_Wpf
 
             // 模式二
             panel.Children.Add(CreateModeCard(
-                "❄️ 模式二：一键永久冻结试用期",
-                "官方支持在线更新 · 零误报推荐",
-                "• 核心原理：基于 Windows ACL 权限机制锁定时间戳与 CLSID，永久剩余 30 天试用。\n• 绝大优势：完全无需修改二进制文件，完美支持 项目D 官方无缝在线静默更新！",
-                "❄️ 立即永久冻结试用期 (30天)",
+                I18n.T("Mode2.Title"),
+                I18n.T("Mode2.Badge"),
+                I18n.T("Mode2.Desc"),
+                I18n.T("Mode2.Btn"),
                 ColBlue,
                 ColBlueHover,
                 ColBlueBadgeBg,
@@ -1152,10 +1736,10 @@ namespace IDM_Toolkit_Wpf
 
             // 模式四：出厂纯净重置
             panel.Children.Add(CreateModeCard(
-                "🔄 模式四：全量清理残留与出厂重置",
-                "环境一键复原 · 消除黑名单",
-                "• 核心原理：申请特权接管系统锁死的全部关联项与 CLSID 试用键，消除封禁警告与拉黑记录。\n• 适用场景：遇到程序频繁弹窗报错、或需完全恢复刚安装时的纯净状态。",
-                "🔄 彻底清理残留并恢复出厂状态",
+                I18n.T("Mode4.Title"),
+                I18n.T("Mode4.Badge"),
+                I18n.T("Mode4.Desc"),
+                I18n.T("Mode4.Btn"),
                 ColRose,
                 ColRoseHover,
                 ColRoseBadgeBg,
@@ -1264,7 +1848,7 @@ namespace IDM_Toolkit_Wpf
 
             header.Children.Add(new TextBlock
             {
-                Text = "💎 模式三：个性化授权登记与注册信息写入",
+                Text = I18n.T("Mode3.Title"),
                 FontSize = 15,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(ColGreen),
@@ -1281,7 +1865,7 @@ namespace IDM_Toolkit_Wpf
             };
             badgeBorder.Child = new TextBlock
             {
-                Text = "点亮注册状态 · 自定义姓名",
+                Text = I18n.T("Mode3.Badge"),
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(ColGreenBadgeFg)
@@ -1292,7 +1876,7 @@ namespace IDM_Toolkit_Wpf
             // 2. 描述
             TextBlock descBlock = new TextBlock
             {
-                Text = "• 核心原理：生成合规授权凭证并写入系统策略，使菜单“关于”窗口显示为尊贵已登记用户。\n• 可在下方直接修改您的自定义登记姓名和绑定邮箱：",
+                Text = I18n.T("Mode3.Desc"),
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
                 TextAlignment = TextAlignment.Center,
@@ -1325,7 +1909,7 @@ namespace IDM_Toolkit_Wpf
             // Row 0: 姓名 + 邮箱
             TextBlock lblName = new TextBlock
             {
-                Text = "登记姓名:",
+                Text = I18n.T("Mode3.LblName"),
                 FontWeight = FontWeights.Bold,
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
@@ -1346,7 +1930,7 @@ namespace IDM_Toolkit_Wpf
 
             TextBlock lblEmail = new TextBlock
             {
-                Text = "绑定邮箱:",
+                Text = I18n.T("Mode3.LblEmail"),
                 FontWeight = FontWeights.Bold,
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
@@ -1381,7 +1965,7 @@ namespace IDM_Toolkit_Wpf
             // Row 1: 证书号 + 随机生成按钮
             TextBlock lblSerial = new TextBlock
             {
-                Text = "授权证书:",
+                Text = I18n.T("Mode3.LblSerial"),
                 FontWeight = FontWeights.Bold,
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(226, 232, 240)),
@@ -1399,7 +1983,7 @@ namespace IDM_Toolkit_Wpf
             Grid.SetColumnSpan(txtAuthSerial, 2);
             formGrid.Children.Add(txtAuthSerial);
 
-            Button btnRandom = CreateCustomButton("🎲 随机生成", Color.FromRgb(55, 65, 81), Color.FromRgb(75, 85, 99), 90, 28, 6, Colors.White, 11, false, Colors.Transparent, 0);
+            Button btnRandom = CreateCustomButton(I18n.T("Mode3.BtnRandom"), Color.FromRgb(55, 65, 81), Color.FromRgb(75, 85, 99), 90, 28, 6, Colors.White, 11, false, Colors.Transparent, 0);
             btnRandom.Margin = new Thickness(14, 0, 0, 0);
             btnRandom.HorizontalAlignment = HorizontalAlignment.Left;
             btnRandom.Click += (s, e) => txtAuthSerial.Text = GenerateSerial();
@@ -1411,7 +1995,7 @@ namespace IDM_Toolkit_Wpf
             sp.Children.Add(inputCard);
 
             // 4. 居中提交按钮
-            Button btnSubmit = CreateCustomButton("✨ 一键写入个性化授权", ColGreen, ColGreenHover, 380, 40, 10, Colors.White, 13, true, Colors.Transparent, 0);
+            Button btnSubmit = CreateCustomButton(I18n.T("Mode3.BtnSubmit"), ColGreen, ColGreenHover, 380, 40, 10, Colors.White, 13, true, Colors.Transparent, 0);
             btnSubmit.HorizontalAlignment = HorizontalAlignment.Center;
             btnSubmit.Click += (s, e) => ExecuteRegister();
             sp.Children.Add(btnSubmit);
@@ -1491,7 +2075,7 @@ namespace IDM_Toolkit_Wpf
             };
             secHeader.Children.Add(new TextBlock
             {
-                Text = "🛡️ 弹窗防御与反封锁策略中心",
+                Text = I18n.T("Sec.Header"),
                 FontSize = 15,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(ColBlue),
@@ -1508,7 +2092,7 @@ namespace IDM_Toolkit_Wpf
             };
             secBadge.Child = new TextBlock
             {
-                Text = "零弹窗骚扰 · 域名防拉黑 · 纯净防护",
+                Text = I18n.T("Sec.Badge"),
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(ColBlueBadgeFg)
@@ -1519,7 +2103,7 @@ namespace IDM_Toolkit_Wpf
             // 描述
             secInner.Children.Add(new TextBlock
             {
-                Text = "通过底层策略切断 项目D 自动联网探测，并利用系统 Hosts 回环阻断官方封禁标记与假冒序列号弹窗。",
+                Text = I18n.T("Sec.Desc"),
                 FontSize = 11,
                 Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
                 TextAlignment = TextAlignment.Center,
@@ -1549,7 +2133,7 @@ namespace IDM_Toolkit_Wpf
             StackPanel p1Header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
             p1Header.Children.Add(new TextBlock
             {
-                Text = "⚡ 启动更新策略",
+                Text = I18n.T("Sec.UpdateTitle"),
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252))
@@ -1558,7 +2142,7 @@ namespace IDM_Toolkit_Wpf
 
             lblUpdateStatus = new TextBlock
             {
-                Text = "状态: 检测中...",
+                Text = I18n.T("Sec.UpdateChecking"),
                 FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Color.FromRgb(201, 209, 217)),
@@ -1568,7 +2152,7 @@ namespace IDM_Toolkit_Wpf
 
             p1Inner.Children.Add(new TextBlock
             {
-                Text = "锁定注册表 CheckUpdtVM=0，彻底消灭启动升级提示窗口。",
+                Text = I18n.T("Sec.UpdateDesc"),
                 FontSize = 10.5,
                 Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
                 TextWrapping = TextWrapping.Wrap,
@@ -1583,12 +2167,12 @@ namespace IDM_Toolkit_Wpf
             p1BtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
             p1BtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            Button btnBlockUpdate = CreateCustomButton("🚫 一键屏蔽更新", ColAmber, ColAmberHover, double.NaN, 34, 7, Colors.White, 11, true, Colors.Transparent, 0);
+            Button btnBlockUpdate = CreateCustomButton(I18n.T("Sec.BtnBlockUpdate"), ColAmber, ColAmberHover, double.NaN, 34, 7, Colors.White, 11, true, Colors.Transparent, 0);
             btnBlockUpdate.Click += (s, e) => ToggleUpdateCheck(true);
             Grid.SetColumn(btnBlockUpdate, 0);
             p1BtnGrid.Children.Add(btnBlockUpdate);
 
-            Button btnAllowUpdate = CreateCustomButton("🔔 恢复官方检测", ColBtnDark, ColBtnDarkHover, double.NaN, 34, 7, Color.FromRgb(240, 246, 252), 11, false, ColBorderMuted, 1);
+            Button btnAllowUpdate = CreateCustomButton(I18n.T("Sec.BtnAllowUpdate"), ColBtnDark, ColBtnDarkHover, double.NaN, 34, 7, Color.FromRgb(240, 246, 252), 11, false, ColBorderMuted, 1);
             btnAllowUpdate.Click += (s, e) => ToggleUpdateCheck(false);
             Grid.SetColumn(btnAllowUpdate, 2);
             p1BtnGrid.Children.Add(btnAllowUpdate);
@@ -1612,7 +2196,7 @@ namespace IDM_Toolkit_Wpf
             StackPanel p2Header = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
             p2Header.Children.Add(new TextBlock
             {
-                Text = "🌐 Hosts 域名盾牌",
+                Text = I18n.T("Sec.HostsTitle"),
                 FontSize = 13,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252))
@@ -1621,7 +2205,7 @@ namespace IDM_Toolkit_Wpf
 
             lblHostsStatus = new TextBlock
             {
-                Text = "状态: 检测中...",
+                Text = I18n.T("Sec.UpdateChecking"),
                 FontSize = 11,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(Color.FromRgb(201, 209, 217)),
@@ -1631,7 +2215,7 @@ namespace IDM_Toolkit_Wpf
 
             p2Inner.Children.Add(new TextBlock
             {
-                Text = "回环 tonec / registeridm 等 8 组服务器，断绝官方黑名单回传。",
+                Text = I18n.T("Sec.HostsDesc"),
                 FontSize = 10.5,
                 Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158)),
                 TextWrapping = TextWrapping.Wrap,
@@ -1646,12 +2230,12 @@ namespace IDM_Toolkit_Wpf
             p2BtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(8) });
             p2BtnGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            Button btnBlockHosts = CreateCustomButton("🛡️ 启用域名拦截", ColBlue, ColBlueHover, double.NaN, 34, 7, Colors.White, 11, true, Colors.Transparent, 0);
+            Button btnBlockHosts = CreateCustomButton(I18n.T("Sec.BtnBlockHosts"), ColBlue, ColBlueHover, double.NaN, 34, 7, Colors.White, 11, true, Colors.Transparent, 0);
             btnBlockHosts.Click += (s, e) => ToggleHostsBlock(true);
             Grid.SetColumn(btnBlockHosts, 0);
             p2BtnGrid.Children.Add(btnBlockHosts);
 
-            Button btnRestoreHosts = CreateCustomButton("🔓 恢复 Hosts", ColBtnDark, ColBtnDarkHover, double.NaN, 34, 7, Color.FromRgb(240, 246, 252), 11, false, ColBorderMuted, 1);
+            Button btnRestoreHosts = CreateCustomButton(I18n.T("Sec.BtnRestoreHosts"), ColBtnDark, ColBtnDarkHover, double.NaN, 34, 7, Color.FromRgb(240, 246, 252), 11, false, ColBorderMuted, 1);
             btnRestoreHosts.Click += (s, e) => ToggleHostsBlock(false);
             Grid.SetColumn(btnRestoreHosts, 2);
             p2BtnGrid.Children.Add(btnRestoreHosts);
@@ -1686,7 +2270,7 @@ namespace IDM_Toolkit_Wpf
             };
             toolHeader.Children.Add(new TextBlock
             {
-                Text = "📁 系统路径与注册表工具箱",
+                Text = I18n.T("Tool.Header"),
                 FontSize = 14,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(240, 246, 252)),
@@ -1704,7 +2288,7 @@ namespace IDM_Toolkit_Wpf
             };
             toolBadge.Child = new TextBlock
             {
-                Text = "快捷运维 · 一键直达",
+                Text = I18n.T("Tool.Badge"),
                 FontSize = 10,
                 Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158))
             };
@@ -1720,8 +2304,18 @@ namespace IDM_Toolkit_Wpf
             toolsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(12) });
             toolsGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            string[] titles = { "💾 备份配置", "🧭 注册表", "📂 安装目录", "📍 定位路径" };
-            string[] subs = { "导出 .reg 到桌面", "打开 regedit", "打开 项目D 目录", "自定义 项目D.exe" };
+            string[] titles = {
+                I18n.T("Tool.BackupTitle"),
+                I18n.T("Tool.RegeditTitle"),
+                I18n.T("Tool.DirTitle"),
+                I18n.T("Tool.LocateTitle")
+            };
+            string[] subs = {
+                I18n.T("Tool.BackupSub"),
+                I18n.T("Tool.RegeditSub"),
+                I18n.T("Tool.DirSub"),
+                I18n.T("Tool.LocateSub")
+            };
 
             for (int i = 0; i < 4; i++)
             {
@@ -1810,10 +2404,7 @@ namespace IDM_Toolkit_Wpf
                 IsReadOnly = true,
                 TextWrapping = TextWrapping.Wrap,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Text = "[系统初始化] C# WPF 原生矢量渲染引擎已就绪 (支持高分屏自适应)\r\n" +
-                       "[外观渲染] DWM 沉浸式深黑标题栏 (Immersive Dark Mode) 与微圆角已激活\r\n" +
-                       "[特权验证] UAC requireAdministrator 权限已激活\r\n" +
-                       "[环境就绪] 请在上方选项卡选择所需的操作模式。"
+                Text = I18n.T("Log.Greeting")
             };
 
             logCard.Child = txtConsole;
@@ -1875,6 +2466,10 @@ namespace IDM_Toolkit_Wpf
             {
                 Dispatcher.Invoke(new Action<string>(Log), msg);
                 return;
+            }
+            if (I18n.Current == AppLanguage.En)
+            {
+                msg = I18n.TranslateLog(msg);
             }
             txtConsole.AppendText("\r\n[" + DateTime.Now.ToString("HH:mm:ss") + "] " + msg);
             txtConsole.ScrollToEnd();
@@ -2037,7 +2632,7 @@ namespace IDM_Toolkit_Wpf
             {
                 if (string.IsNullOrEmpty(selectedPath))
                 {
-                    errorMsg = "选择的路径为空。";
+                    errorMsg = I18n.T("Err.PathEmpty");
                     return false;
                 }
                 string targetDir = selectedPath.Trim().Trim('"');
@@ -2049,21 +2644,21 @@ namespace IDM_Toolkit_Wpf
                     }
                     else
                     {
-                        errorMsg = "所选文件不是 项目D.exe 主程序。";
+                        errorMsg = I18n.T("Err.NotIDMExe");
                         return false;
                     }
                 }
 
                 if (!Directory.Exists(targetDir))
                 {
-                    errorMsg = "目标目录不存在: " + targetDir;
+                    errorMsg = I18n.T("Err.DirNotExist", targetDir);
                     return false;
                 }
 
                 string idmExe = Path.Combine(targetDir, "项目D.exe");
                 if (!File.Exists(idmExe))
                 {
-                    errorMsg = "在目录 [" + targetDir + "] 下未找到 项目D.exe 主程序文件！";
+                    errorMsg = I18n.T("Err.ExeNotFoundInDir", targetDir);
                     return false;
                 }
 
@@ -2102,8 +2697,8 @@ namespace IDM_Toolkit_Wpf
         public void PromptSelectIDMPath()
         {
             OpenFileDialog dlg = new OpenFileDialog();
-            dlg.Title = "手动定位 项目D.exe 主程序";
-            dlg.Filter = "项目D 主程序 (项目D.exe)|项目D.exe|所有文件 (*.*)|*.*";
+            dlg.Title = I18n.T("Dlg.Locate.DialogTitle");
+            dlg.Filter = I18n.T("Dlg.Locate.Filter");
             dlg.FileName = "项目D.exe";
             dlg.CheckFileExists = true;
 
@@ -2119,12 +2714,12 @@ namespace IDM_Toolkit_Wpf
                 {
                     Log("✓ 已成功手动定位 项目D 路径: " + _customIDMDir);
                     RefreshAllStatus();
-                    ModernDialog.ShowSuccess(this, "定位成功", "项目D 主程序路径已成功更新并记忆：\n\n• 当前路径：" + _customIDMDir + "\n• 主程序：项目D.exe\n\n所有核心解锁、备份与还原功能将即刻生效于此路径！");
+                    ModernDialog.ShowSuccess(this, I18n.T("Dlg.Locate.Success.Title"), I18n.T("Dlg.Locate.Success.Msg", _customIDMDir));
                 }
                 else
                 {
                     Log("定位 项目D 路径失败: " + err);
-                    ModernDialog.ShowError(this, "定位失败", "未能应用所选路径:\n\n" + err);
+                    ModernDialog.ShowError(this, I18n.T("Dlg.Locate.Failed.Title"), I18n.T("Dlg.Locate.Failed.Msg", err));
                 }
             }
         }
@@ -2164,12 +2759,12 @@ namespace IDM_Toolkit_Wpf
             // 1. 安装检测
             if (File.Exists(idmExe))
             {
-                lblStatInstall.Text = "已安装 ✓";
+                lblStatInstall.Text = I18n.T("Stat.InstallInstalled");
                 lblStatInstall.Foreground = new SolidColorBrush(Color.FromRgb(63, 185, 80));
             }
             else
             {
-                lblStatInstall.Text = "未识别 (点击定位) ✗";
+                lblStatInstall.Text = I18n.T("Stat.InstallMissing");
                 lblStatInstall.Foreground = new SolidColorBrush(Color.FromRgb(248, 81, 73));
             }
 
@@ -2188,7 +2783,7 @@ namespace IDM_Toolkit_Wpf
             }
             else
             {
-                lblStatVer.Text = "未知";
+                lblStatVer.Text = I18n.T("Stat.VersionUnknown");
             }
 
             // 3. 授权检测
@@ -2202,47 +2797,47 @@ namespace IDM_Toolkit_Wpf
                         object fname = k.GetValue("FName");
                         if (fname != null && !string.IsNullOrEmpty(fname.ToString().Trim()))
                         {
-                            lblStatAuth.Text = "已登记 (" + fname.ToString().Trim() + ")";
+                            lblStatAuth.Text = I18n.T("Stat.AuthRegistered", fname.ToString().Trim());
                             lblStatAuth.Foreground = new SolidColorBrush(ColBlue);
                         }
                         else if (isFrozen)
                         {
-                            lblStatAuth.Text = "❄️ 试用已永久冻结 (30天)";
+                            lblStatAuth.Text = I18n.T("Stat.AuthFrozen");
                             lblStatAuth.Foreground = new SolidColorBrush(Color.FromRgb(56, 189, 248));
                         }
                         else
                         {
-                            lblStatAuth.Text = "未登记";
+                            lblStatAuth.Text = I18n.T("Stat.AuthUnregistered");
                             lblStatAuth.Foreground = new SolidColorBrush(ColAmber);
                         }
                     }
                     else if (isFrozen)
                     {
-                        lblStatAuth.Text = "❄️ 试用已永久冻结 (30天)";
+                        lblStatAuth.Text = I18n.T("Stat.AuthFrozen");
                         lblStatAuth.Foreground = new SolidColorBrush(Color.FromRgb(56, 189, 248));
                     }
                     else
                     {
-                        lblStatAuth.Text = "未登记";
+                        lblStatAuth.Text = I18n.T("Stat.AuthUnregistered");
                         lblStatAuth.Foreground = new SolidColorBrush(ColAmber);
                     }
                 }
             }
             catch
             {
-                lblStatAuth.Text = "未检测到";
+                lblStatAuth.Text = I18n.T("Stat.AuthUndetected");
             }
 
             // 4. 进程检测
             Process[] procs = Process.GetProcessesByName("项目D");
             if (procs.Length > 0)
             {
-                lblStatProc.Text = "运行中 (" + procs.Length + ")";
+                lblStatProc.Text = I18n.T("Stat.ProcessRunning", procs.Length);
                 lblStatProc.Foreground = new SolidColorBrush(Color.FromRgb(63, 185, 80));
             }
             else
             {
-                lblStatProc.Text = "未运行 ⚪";
+                lblStatProc.Text = I18n.T("Stat.ProcessStopped");
                 lblStatProc.Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158));
             }
 
@@ -2251,17 +2846,17 @@ namespace IDM_Toolkit_Wpf
             {
                 if (!string.IsNullOrEmpty(_customIDMDir))
                 {
-                    lblStatPath.Text = "手动指定 📍";
+                    lblStatPath.Text = I18n.T("Stat.PathCustom");
                     lblStatPath.Foreground = new SolidColorBrush(ColBlue);
                 }
                 else if (File.Exists(idmExe))
                 {
-                    lblStatPath.Text = "自动捕获 ✓";
+                    lblStatPath.Text = I18n.T("Stat.PathAuto");
                     lblStatPath.Foreground = new SolidColorBrush(Color.FromRgb(63, 185, 80));
                 }
                 else
                 {
-                    lblStatPath.Text = "未找到 ⚠";
+                    lblStatPath.Text = I18n.T("Stat.PathNotFound");
                     lblStatPath.Foreground = new SolidColorBrush(ColAmber);
                 }
             }
@@ -2289,13 +2884,13 @@ namespace IDM_Toolkit_Wpf
                     object val = (k != null) ? k.GetValue("CheckUpdtVM") : null;
                     if (val != null && val.ToString() == "0")
                     {
-                        lblUpdateStatus.Text = "● 自动更新已彻底屏蔽 (安全)";
+                        lblUpdateStatus.Text = I18n.T("Sec.UpdateBlocked");
                         lblUpdateStatus.Foreground = new SolidColorBrush(Color.FromRgb(34, 197, 94)); // Emerald
                         if (cardUpdateStatusBd != null) cardUpdateStatusBd.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 34, 197, 94));
                     }
                     else
                     {
-                        lblUpdateStatus.Text = "○ 自动更新未屏蔽 (默认开启)";
+                        lblUpdateStatus.Text = I18n.T("Sec.UpdateAllowed");
                         lblUpdateStatus.Foreground = new SolidColorBrush(ColAmber);
                         if (cardUpdateStatusBd != null) cardUpdateStatusBd.BorderBrush = new SolidColorBrush(ColBorderMuted);
                     }
@@ -2303,7 +2898,7 @@ namespace IDM_Toolkit_Wpf
             }
             catch
             {
-                lblUpdateStatus.Text = "⚪ 状态未检测到";
+                lblUpdateStatus.Text = I18n.T("Sec.UpdateUnknown");
             }
 
             // 检查 Hosts 防护
@@ -2315,13 +2910,13 @@ namespace IDM_Toolkit_Wpf
                     string content = File.ReadAllText(hostsPath);
                     if (content.Contains("tonec.com") && content.Contains("registeridm.com"))
                     {
-                        lblHostsStatus.Text = "● 8 组规则已就绪 (安全拦截)";
+                        lblHostsStatus.Text = I18n.T("Sec.HostsActive");
                         lblHostsStatus.Foreground = new SolidColorBrush(Color.FromRgb(34, 197, 94)); // Emerald
                         if (cardHostsStatusBd != null) cardHostsStatusBd.BorderBrush = new SolidColorBrush(Color.FromArgb(90, 56, 189, 248));
                     }
                     else
                     {
-                        lblHostsStatus.Text = "○ Hosts 防护未启用";
+                        lblHostsStatus.Text = I18n.T("Sec.HostsInactive");
                         lblHostsStatus.Foreground = new SolidColorBrush(Color.FromRgb(139, 148, 158));
                         if (cardHostsStatusBd != null) cardHostsStatusBd.BorderBrush = new SolidColorBrush(ColBorderMuted);
                     }
@@ -2329,7 +2924,7 @@ namespace IDM_Toolkit_Wpf
             }
             catch
             {
-                lblHostsStatus.Text = "⚪ 状态未知";
+                lblHostsStatus.Text = I18n.T("Sec.HostsUnknown");
             }
         }
 
@@ -2347,13 +2942,13 @@ namespace IDM_Toolkit_Wpf
                             k.SetValue("CheckUpdtVM", 0, RegistryValueKind.DWord);
                             k.SetValue("LstCheck", "0", RegistryValueKind.String);
                             Log("✓ 已启用自动更新屏蔽策略：CheckUpdtVM = 0 (已阻断启动自动检测与升级弹窗)");
-                            ModernDialog.ShowSuccess(this, "更新策略生效", "已成功屏蔽 项目D 启动自动检查更新！\n\n• 策略注册表 CheckUpdtVM 已锁死为 0\n• 彻底切断启动联网升级请求，不再弹出版本升级窗口。");
+                            ModernDialog.ShowSuccess(this, I18n.T("Dlg.Update.Blocked.Title"), I18n.T("Dlg.Update.Blocked.Msg"));
                         }
                         else
                         {
                             k.SetValue("CheckUpdtVM", 1, RegistryValueKind.DWord);
                             Log("✓ 已恢复 项目D 官方自动更新检查：CheckUpdtVM = 1");
-                            ModernDialog.ShowInfo(this, "更新策略已恢复", "已恢复 项目D 官方自动更新检查功能。\n\n• 策略注册表 CheckUpdtVM 已重置为 1。");
+                            ModernDialog.ShowInfo(this, I18n.T("Dlg.Update.Restored.Title"), I18n.T("Dlg.Update.Restored.Msg"));
                         }
                     }
                 }
@@ -2413,13 +3008,13 @@ namespace IDM_Toolkit_Wpf
 
                     File.WriteAllText(hostsPath, content, Encoding.UTF8);
                     Log("✓ 已成功将 项目D 官方黑名单与验证服务器重定向至 127.0.0.1 (系统 hosts 防护已生效)");
-                    ModernDialog.ShowSuccess(this, "Hosts 防护已生效", "Hosts 域名反封锁防护已成功启用！\n\n• 已将 tonec.com / registeridm.com 等 8 组验证服务器回环指向 127.0.0.1\n• 彻底切断序列号黑名单回传与虚假授权弹窗标记。");
+                    ModernDialog.ShowSuccess(this, I18n.T("Dlg.Hosts.Blocked.Title"), I18n.T("Dlg.Hosts.Blocked.Msg"));
                 }
                 else
                 {
                     File.WriteAllText(hostsPath, content.TrimEnd() + "\r\n", Encoding.UTF8);
                     Log("✓ 已成功从系统 hosts 中移除 项目D 验证服务器拦截规则");
-                    ModernDialog.ShowInfo(this, "Hosts 规则已重置", "已从系统 Hosts 中移除 项目D 验证服务器拦截规则。");
+                    ModernDialog.ShowInfo(this, I18n.T("Dlg.Hosts.Restored.Title"), I18n.T("Dlg.Hosts.Restored.Msg"));
                 }
 
                 RefreshSecurityPolicyStatus();
@@ -2427,7 +3022,7 @@ namespace IDM_Toolkit_Wpf
             catch (Exception ex)
             {
                 Log("配置 Hosts 失败: " + ex.Message + " (请确认以管理员特权运行)");
-                ModernDialog.ShowError(this, "Hosts 配置失败", "配置系统 Hosts 失败: " + ex.Message + "\n\n• 请确认是否已被第三方杀毒软件拦截。");
+                ModernDialog.ShowError(this, I18n.T("Dlg.Hosts.Failed.Title"), I18n.T("Dlg.Hosts.Failed.Msg", ex.Message));
             }
         }
 
@@ -2452,7 +3047,7 @@ namespace IDM_Toolkit_Wpf
                 if (!File.Exists(idmExe))
                 {
                     Log("未找到 项目D.exe 主程序，请尝试点击【手动定位 项目D 路径】。");
-                    ModernDialog.ShowWarning(this, "未找到程序", "未找到 项目D.exe 主程序！\n\n如果您的 项目D 安装在其他盘符（如 D盘、E盘），请点击左侧或工具箱的【手动定位 项目D 路径】指定 项目D.exe。");
+                    ModernDialog.ShowWarning(this, I18n.T("Dlg.Locate.NotFound.Title"), I18n.T("Dlg.Locate.NotFound.Msg"));
                     return;
                 }
 
@@ -2463,13 +3058,7 @@ namespace IDM_Toolkit_Wpf
                 {
                     Log("✗ 启动前体检未通过：" + diag);
                     Log("  目标路径: " + idmExe);
-                    bool doFix = ModernDialog.Confirm(this, "项目D.exe 已损坏",
-                        "检测到 项目D.exe 无法作为可执行程序加载：\n\n• " + diag + "\n\n" +
-                        "常见原因：\n" +
-                        "  1) 补丁偏移与当前 项目D 版本不匹配，导致映像被写坏；\n" +
-                        "  2) 杀毒软件查杀后残留了不完整文件；\n" +
-                        "  3) 磁盘写入中断。\n\n" +
-                        "是否立即从 项目D.exe.BAK 备份还原官方原版？");
+                    bool doFix = ModernDialog.Confirm(this, I18n.T("Dlg.Corrupt.Title"), I18n.T("Dlg.Corrupt.Msg", diag));
                     if (doFix) RestoreOriginal();
                     return;
                 }
@@ -2484,10 +3073,7 @@ namespace IDM_Toolkit_Wpf
                 catch (Exception ex)
                 {
                     Log("✗ 启动 项目D 失败: " + ex.Message);
-                    ModernDialog.ShowError(this, "启动失败",
-                        "启动 项目D 失败：\n\n" + ex.Message + "\n\n" +
-                        "若提示「不是有效的 Win32 应用程序」，说明 项目D.exe 已被破坏，\n" +
-                        "请使用左侧【一键还原官方原版】恢复后再重试。");
+                    ModernDialog.ShowError(this, I18n.T("Dlg.Start.Failed.Title"), I18n.T("Dlg.Start.Failed.Msg", ex.Message));
                 }
             }
             else if (idx == 4) // 一键还原官方原版
@@ -2506,7 +3092,7 @@ namespace IDM_Toolkit_Wpf
                     Process p = Process.Start("reg.exe", "export \"HKCU\\Software\\DownloadManager\" \"" + exportFile + "\" /y");
                     if (p != null) p.WaitForExit();
                     Log("已成功导出 项目D 注册表配置至桌面: " + exportFile);
-                    ModernDialog.ShowSuccess(this, "注册表配置已备份", "项目D 当前注册表配置已成功导出保存至您的桌面！\n\n• 备份文件：IDM_Reg_Backup.reg\n• 存放路径：" + exportFile);
+                    ModernDialog.ShowSuccess(this, I18n.T("Dlg.RegBackup.Title"), I18n.T("Dlg.RegBackup.Msg", exportFile));
                 }
                 else if (idx == 1) // 打开注册表
                 {
@@ -2523,7 +3109,7 @@ namespace IDM_Toolkit_Wpf
                     }
                     else
                     {
-                        ModernDialog.ShowWarning(this, "未找到目录", "未检测到 项目D 安装目录，请点击【定位路径】手动指定 项目D.exe 所在文件夹。");
+                        ModernDialog.ShowWarning(this, I18n.T("Dlg.Locate.DirNotFound.Title"), I18n.T("Dlg.Locate.DirNotFound.Msg"));
                     }
                 }
                 else if (idx == 3) // 手动定位路径
@@ -2534,7 +3120,7 @@ namespace IDM_Toolkit_Wpf
             catch (Exception ex)
             {
                 Log("操作异常: " + ex.Message);
-                ModernDialog.ShowError(this, "操作执行异常", "执行该工具时发生异常:\n\n" + ex.Message);
+                ModernDialog.ShowError(this, I18n.T("Dlg.OpError.Title"), I18n.T("Dlg.OpError.Msg", ex.Message));
             }
         }
 
@@ -2706,11 +3292,11 @@ namespace IDM_Toolkit_Wpf
 
             if (ok)
             {
-                ModernDialog.ShowSuccess(this, "一键还原成功", "已成功还原为官方原版与初始配置！\n\n• 主程序 项目D.exe 已还原为官方未修改原版\n• 授权登记信息（姓名/邮箱/序列号）已全部清除\n• 运行状态已恢复为官方未注册/试用状态");
+                ModernDialog.ShowSuccess(this, I18n.T("Dlg.Restore.Success.Title"), I18n.T("Dlg.Restore.Success.Msg"));
             }
             else
             {
-                ModernDialog.ShowWarning(this, "还原提示", "还原过程中发生异常，详情请查看控制台输出日志！");
+                ModernDialog.ShowWarning(this, I18n.T("Dlg.Restore.Warning.Title"), I18n.T("Dlg.Restore.Warning.Msg"));
             }
         }
 
@@ -2782,30 +3368,30 @@ namespace IDM_Toolkit_Wpf
         {
             info = null; error = null;
 
-            if (d == null || d.Length < 0x200) { error = "文件体积过小，不是有效的 PE 映像"; return false; }
-            if (d[0] != 0x4D || d[1] != 0x5A) { error = "缺少 MZ 头，不是有效的 Win32 可执行文件"; return false; }
+            if (d == null || d.Length < 0x200) { error = I18n.T("Pe.TooSmall"); return false; }
+            if (d[0] != 0x4D || d[1] != 0x5A) { error = I18n.T("Pe.MissingMZ"); return false; }
 
             int lfanew = RdI32(d, 0x3C);
-            if (lfanew <= 0 || lfanew + 0x18 > d.Length) { error = "DOS 头 e_lfanew 偏移越界"; return false; }
+            if (lfanew <= 0 || lfanew + 0x18 > d.Length) { error = I18n.T("Pe.BadLfanew"); return false; }
             if (d[lfanew] != 0x50 || d[lfanew + 1] != 0x45 || d[lfanew + 2] != 0 || d[lfanew + 3] != 0)
-            { error = "缺少 PE 签名，映像已损坏"; return false; }
+            { error = I18n.T("Pe.MissingPE"); return false; }
 
             int coff = lfanew + 4;
-            if (coff + 20 > d.Length) { error = "COFF 文件头越界"; return false; }
+            if (coff + 20 > d.Length) { error = I18n.T("Pe.BadCoff"); return false; }
             int nsec  = RdU16(d, coff + 2);
             int optsz = RdU16(d, coff + 16);
             int opt   = coff + 20;
 
-            if (nsec <= 0 || nsec > 96) { error = "节区数量异常 (" + nsec + ")"; return false; }
-            if (optsz < 0xE0 || opt + optsz > d.Length) { error = "可选头长度异常 (" + optsz + ")"; return false; }
+            if (nsec <= 0 || nsec > 96) { error = I18n.T("Pe.BadNsec", nsec); return false; }
+            if (optsz < 0xE0 || opt + optsz > d.Length) { error = I18n.T("Pe.BadOptSz", optsz); return false; }
 
             int magic = RdU16(d, opt);
             bool plus = (magic == 0x20B);
             if (magic != 0x10B && magic != 0x20B)
-            { error = "可选头 Magic 异常 (0x" + magic.ToString("X") + ")，不是标准 PE 映像"; return false; }
+            { error = I18n.T("Pe.BadMagic", magic.ToString("X")); return false; }
 
             int secTab = opt + optsz;
-            if ((long)secTab + (long)nsec * 40 > d.Length) { error = "节区表越界，映像已被截断损坏"; return false; }
+            if ((long)secTab + (long)nsec * 40 > d.Length) { error = I18n.T("Pe.BadSecTab"); return false; }
 
             long imgEnd = 0;
             for (int i = 0; i < nsec; i++)
@@ -2813,7 +3399,7 @@ namespace IDM_Toolkit_Wpf
                 int o = secTab + i * 40;
                 int rawSize = RdI32(d, o + 16);
                 int rawPtr  = RdI32(d, o + 20);
-                if (rawSize < 0 || rawPtr < 0) { error = "第 " + i + " 个节区头字段非法"; return false; }
+                if (rawSize < 0 || rawPtr < 0) { error = I18n.T("Pe.BadSecHeader", i); return false; }
                 long end = (long)rawPtr + (long)rawSize;
                 if (end > d.Length)
                 {
@@ -3422,15 +4008,15 @@ namespace IDM_Toolkit_Wpf
         {
             try
             {
-                if (!File.Exists(exePath)) return "目标文件不存在";
+                if (!File.Exists(exePath)) return I18n.T("Diag.NotFound");
                 FileInfo fi = new FileInfo(exePath);
-                if (fi.Length == 0) return "文件长度为 0 字节（极可能被杀毒软件查杀/隔离后残留空文件）";
+                if (fi.Length == 0) return I18n.T("Diag.ZeroBytes");
                 byte[] d = File.ReadAllBytes(exePath);
                 string err;
                 if (!PeImageUtil.IsValidImage(d, out err)) return err;
                 return null;
             }
-            catch (Exception ex) { return "读取失败: " + ex.Message; }
+            catch (Exception ex) { return I18n.T("Diag.ReadFailed", ex.Message); }
         }
     }
 
@@ -3990,23 +4576,17 @@ namespace IDM_Toolkit_Wpf
 
                 if (appliedCount > 0)
                 {
-                    ModernDialog.ShowSuccess(this, "深度解锁成功", "项目D 极速深度解锁成功！\n\n• 已完成全部 " + appliedCount + "/" + NativeBinaryPatcher.RulesCount + " 处核心校验指令修补\n• 授权身份：已同步点亮（授权人：" + currentName + "）\n• 关于界面：已生效为终身完整许可\n• 假冒序列号弹窗与看门狗拦截已被彻底切断！");
+                    ModernDialog.ShowSuccess(this, I18n.T("Dlg.Patch.Success.Title"), I18n.T("Dlg.Patch.Success.Msg", appliedCount, NativeBinaryPatcher.RulesCount, currentName));
                 }
                 else
                 {
-                    ModernDialog.ShowInfo(this, "补丁已生效", "项目D.exe 补丁与授权已处于激活状态！\n\n• 全部 " + NativeBinaryPatcher.RulesCount + " 处核心校验逻辑均已就绪\n• 授权身份：已登记 (" + currentName + ")\n• 关于界面：终身许可，零弹窗骚扰\n\n如需更改显示的授权人姓名，请使用模式三（个性化授权登记）。");
+                    ModernDialog.ShowInfo(this, I18n.T("Dlg.Patch.Active.Title"), I18n.T("Dlg.Patch.Active.Msg", NativeBinaryPatcher.RulesCount, currentName));
                 }
             }
             else
             {
                 Log("模式一执行遇到异常，详情请查看上方日志。");
-                ModernDialog.ShowWarning(this, "解锁异常",
-                    "底层指令优化未能完成，已自动放弃写入（项目D.exe 未被修改）。\n\n" +
-                    "最常见原因：当前 项目D 版本不在本工具补丁指纹支持范围内\n" +
-                    "（本工具仅适配 项目D " + NativeBinaryPatcher.SupportedVersions + "）。\n\n" +
-                    "请查看控制台日志确认具体原因。建议改用【模式二：永久冻结试用期】\n" +
-                    "或【模式三：个性化授权登记】。\n\n" +
-                    "若确为权限问题，请以管理员身份运行并暂时关闭安全防护软件。");
+                ModernDialog.ShowWarning(this, I18n.T("Dlg.Patch.Error.Title"), I18n.T("Dlg.Patch.Error.Msg", NativeBinaryPatcher.SupportedVersions));
             }
         }
 
@@ -4019,18 +4599,11 @@ namespace IDM_Toolkit_Wpf
 
             if (ok)
             {
-                ModernDialog.ShowSuccess(this, "试用期冻结成功",
-                    "项目D 试用期已成功永久冻结！\n\n" +
-                    "• 已通过 Windows ACL 权限锁定 " + lockedCount + " 处试用策略键\n" +
-                    "• 试用状态：永久锁定在剩余 30 天，零弹窗骚扰\n" +
-                    "• 核心优势：完全未修改任何二进制，支持官方在线静默更新！\n\n" +
-                    "若后续需出厂重置或改用其他激活模式，可随时使用模式四或还原功能。");
+                ModernDialog.ShowSuccess(this, I18n.T("Dlg.Trial.Success.Title"), I18n.T("Dlg.Trial.Success.Msg", lockedCount));
             }
             else
             {
-                ModernDialog.ShowWarning(this, "冻结提示",
-                    "未能成功锁定试用策略键，详情请查看控制台日志。\n\n" +
-                    "建议确保以管理员权限运行，并在退出安全防护软件拦截后重试。");
+                ModernDialog.ShowWarning(this, I18n.T("Dlg.Trial.Warning.Title"), I18n.T("Dlg.Trial.Warning.Msg"));
             }
         }
 
@@ -4227,17 +4800,17 @@ namespace IDM_Toolkit_Wpf
             if (ok)
             {
                 RefreshAllStatus();
-                ModernDialog.ShowSuccess(this, "授权与解锁成功", "项目D 个性化授权信息已成功写入！\n\n• 登记姓名：" + name + "\n• 绑定邮箱：" + email + "\n• 授权证书：" + serial + "\n\n已自动联动应用底层深度解锁，彻底杜绝假冒序列号弹窗！");
+                ModernDialog.ShowSuccess(this, I18n.T("Dlg.Register.Success.Title"), I18n.T("Dlg.Register.Success.Msg", name, email, serial));
             }
             else
             {
-                ModernDialog.ShowError(this, "授权写入失败", "写入授权信息失败，请查看控制台详细日志！");
+                ModernDialog.ShowError(this, I18n.T("Dlg.Register.Error.Title"), I18n.T("Dlg.Register.Error.Msg"));
             }
         }
 
         private void ExecuteReset()
         {
-            if (!ModernDialog.Confirm(this, "出厂重置确认", "确定要彻底清理所有授权记录残留与历史试用标记吗？\n\n• 执行后 项目D 将恢复为全新出厂纯净试用状态\n• 抹除所有注册表黑名单标记与试用期锁定特征"))
+            if (!ModernDialog.Confirm(this, I18n.T("Dlg.Reset.Confirm.Title"), I18n.T("Dlg.Reset.Confirm.Msg")))
                 return;
 
             SwitchTab(2);
@@ -4300,12 +4873,12 @@ namespace IDM_Toolkit_Wpf
                 Log("✓ 模式四执行完毕：项目D 授权与黑名单数据已彻底消除，成功恢复出厂纯净状态！");
 
                 RefreshAllStatus();
-                ModernDialog.ShowSuccess(this, "出厂重置完成", "项目D 已成功完成出厂纯净重置！\n\n• 已清除关联配置项: " + deletedProps + " 处\n• 已重置试用策略键: " + deletedGuids + " 处\n\n所有封禁与过期弹窗记录已被彻底清除。");
+                ModernDialog.ShowSuccess(this, I18n.T("Dlg.Reset.Success.Title"), I18n.T("Dlg.Reset.Success.Msg", deletedProps, deletedGuids));
             }
             catch (Exception ex)
             {
                 Log("重置失败: " + ex.Message);
-                ModernDialog.ShowError(this, "重置失败", "执行出厂重置失败:\n\n" + ex.Message);
+                ModernDialog.ShowError(this, I18n.T("Dlg.Reset.Error.Title"), I18n.T("Dlg.Reset.Error.Msg", ex.Message));
             }
         }
 

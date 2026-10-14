@@ -47,6 +47,8 @@
   Automatically archives clean original binaries to `项目D.exe.BAK`. Inspects embedded version metadata to detect stale backups from past updates, preventing rollback version misalignment.
 - ⚡ **Multi-Paradigm Activation Strategies**  
   Consolidates deep binary patching, Windows ACL registry evaluation freezing, and personalized identity registration into a single modular solution.
+- 🌐 **Full Bilingual Architecture (English & Simplified Chinese)**  
+  Auto-detects Windows OS locale upon startup with a persistent `[ 🌐 EN / 简 ]` sidebar capsule toggle for instant in-memory language switching across all controls, dialogs, and live console logs.
 
 ---
 
