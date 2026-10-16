@@ -162,7 +162,21 @@ step "1/6  拉取最新代码"
 if [ "$NO_PULL" = 1 ]; then
     info "已指定 --no-pull，跳过 git pull"
 elif [ "$IS_GIT" != 1 ]; then
-    warn "当前目录不是 Git 仓库，无法自动拉取。请手动下载最新压缩包覆盖后重跑本脚本。"
+    if command -v git >/dev/null 2>&1; then
+        info "检测到本机已安装 Git，正在将当前目录自动关联并初始化至远程仓库..."
+        cd "$ROOT" || exit 1
+        git init >/dev/null 2>&1 || true
+        git remote add origin https://github.com/angusdevgo/Seep-Reverse-Lab.git >/dev/null 2>&1 || true
+        git remote set-url origin https://github.com/angusdevgo/Seep-Reverse-Lab.git >/dev/null 2>&1 || true
+        info "正在从远程仓库高速拉取最新代码..."
+        git fetch origin main >/dev/null 2>&1 || true
+        git reset --mixed origin/main >/dev/null 2>&1 || true
+        ok "已成功将当前工作台关联并更新至最新版本！"
+        IS_GIT=1
+    else
+        warn "当前目录不是 Git 仓库且未检测到 Git 命令，无法自动拉取。"
+        info "若需更新，可从 GitHub 仓库下载最新压缩包覆盖后重跑本脚本。"
+    fi
 else
     PROXY_PORT="$(detect_proxy)"
     PROXY_ARGS=()

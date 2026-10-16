@@ -185,7 +185,28 @@ Write-Step '1/6  拉取最新代码'
 if ($NoPull) {
     Write-Info '已指定 -NoPull，跳过 git pull（适用于手动下载压缩包覆盖的场景）'
 } elseif (-not $isGitRepo) {
-    Write-Warn2 '当前目录不是 Git 仓库，无法自动拉取。请手动下载最新压缩包覆盖后重跑本脚本。'
+    $hasGit = Get-Command git -ErrorAction SilentlyContinue
+    if ($hasGit) {
+        Write-Info '检测到本机已安装 Git，正在将当前目录自动关联并初始化至远程仓库...'
+        Push-Location $Root
+        try {
+            & git init 2>&1 | Out-Null
+            & git remote add origin https://github.com/angusdevgo/Seep-Reverse-Lab.git 2>&1 | Out-Null
+            & git remote set-url origin https://github.com/angusdevgo/Seep-Reverse-Lab.git 2>&1 | Out-Null
+            Write-Info '正在从远程仓库高速拉取最新代码...'
+            & git @proxyArgs fetch origin main 2>&1 | ForEach-Object { Write-Info $_ }
+            & git @proxyArgs reset --mixed origin/main 2>&1 | Out-Null
+            Write-Ok '已成功将当前工作台关联并更新至最新版本！'
+            $isGitRepo = $true
+        } catch {
+            Write-Warn2 "自动关联拉取失败: $_"
+        } finally {
+            Pop-Location
+        }
+    } else {
+        Write-Warn2 '当前目录不是 Git 仓库且本机未检测到 Git 命令，无法自动拉取。'
+        Write-Info '若需更新，可从 GitHub 仓库下载最新压缩包覆盖后重跑本脚本。'
+    }
 } else {
     $proxyPort = Test-ProxyPort -Ports @(10808, 7897, 7890)
     if ($proxyPort) {
