@@ -17,7 +17,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/MCP%20工具-23%20已集成-purple?style=for-the-badge&logo=fastapi" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/健康体检-51%2F51%20全绿通过-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
+  <img src="https://img.shields.io/badge/健康体检-52%2F52%20全绿通过-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
   <img src="https://img.shields.io/badge/实战知识库-289%20篇战术笔记-teal?style=for-the-badge" alt="Knowledge Base">
   <img src="https://img.shields.io/badge/脱敏范式-14%20大案例%20(A~N)-blue?style=for-the-badge" alt="Paradigms">
   <img src="https://img.shields.io/badge/MANUAL%20SOP-9%20份专项手册-red?style=for-the-badge" alt="MANUAL SOPs">
@@ -292,6 +292,9 @@ chmod +x setup/install.sh
 
 已经部署过？**不需要重新克隆或手动拷贝文件**。更新脚本是**幂等且无损**的 —— 你的模型凭据与自行添加的 MCP 条目永不会被覆盖。
 
+- **最简方式（双击批处理）**：Windows 用户直接双击项目根目录下的 **`update.bat`** 即可全自动执行；
+- **智能对话方式**：在支持的 Agent 会话中直接对 AI 发送 **“更新工作台”**，Agent 会原地自动调用更新脚本并向你汇报；
+- **命令行方式**：
 ```powershell
 # Windows
 powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
@@ -306,10 +309,23 @@ powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
 | 参数 | 作用 |
 |---|---|
 | `-DryRun` / `--dry-run` | 只显示将要做什么，不修改任何文件 |
+| `-Check` / `--check` | 仅检查远程是否有新版本发布，不执行拉取 |
 | `-NoPull` / `--no-pull` | 跳过 `git pull`（适用于压缩包部署） |
 
 > ⚠️ **更新后务必完全重启 Agent 会话**，新 Skill 与扩展才会加载。
 > 各版本变更内容见 [CHANGELOG.md](CHANGELOG.md)。
+
+### 4b. 上游仓库定点隔离同步（防外溢机制）
+
+工作台整合了多个开源上游项目（如 `apk-reverse`、`open-tgtylab`、`open-reverselab`）。为了解决上游作者在 GitHub 更新后手动合并繁琐且易污染其他模块的问题，工作台确立了**「单源单目录、零外溢」**的声明式同步机制：
+
+- **声明式规则清单**：`setup/upstream-rules.json` 严格绑定每一个上游仓库的唯一目标目录与边界白名单；
+- **物理防外溢断言**：`setup/sync-upstream.py` 纯标准库引擎在写入前执行 `realpath` 前缀物理路径断言，若 A 仓库的内容试图写到 B/C 目录或主工程，立即抛出 `SpilloverSecurityViolation` 异常并熔断拦截；
+- **CI 独立隔离 PR**：云端配置 `.github/workflows/upstream-sync.yml` 定时巡检，发现 A 仓库更新时仅切出独立分支提 PR，Diff 严格限定在 A 目录内；
+- **本地一键维护**：
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\setup\sync-upstream.ps1 -Target apk-reverse
+  ```
 
 ### 5. 如何卸载
 
@@ -325,7 +341,7 @@ powershell -ExecutionPolicy Bypass -File ./setup/uninstall.ps1          # 再执
 
 所有受影响文件会先整体备份到 `~/.pi/agent/backup-uninstall-<时间戳>/`，用 `-Restore <目录>` 可一键还原。详见 [MANUAL/DEPLOYMENT.md](MANUAL/DEPLOYMENT.md)。
 
-### 6. 部署完备性校验（9 大维度 51 项全绿）
+### 6. 部署完备性校验（9 大维度 52 项全绿）
 
 严格对照 `MANUAL/DEPLOYMENT-CHECKLIST.md` 官方基准核验：
 

@@ -1,0 +1,129 @@
+name: "Upstream Sync and Zero-Spillover PR Automation"
+
+on:
+  schedule:
+    # 每周一 UTC 04:00 自动巡检（北京时间 12:00）
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '选择要同步的上游仓库 (apk-reverse / open-tgtylab / open-reverselab / all)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - apk-reverse
+          - open-tgtylab
+          - open-reverselab
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Seep-Reverse-Lab
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Configure Git Author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Boundary Unit Tests
+        run: |
+          python setup/test_sync_upstream.py
+
+      - name: Process Upstream Targets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TARGET: ${{ inputs.target }}
+        run: |
+          CHOSEN_TARGET="${INPUT_TARGET:-all}"
+          TARGETS=("apk-reverse" "open-tgtylab" "open-reverselab")
+          if [ "$CHOSEN_TARGET" != "all" ]; then
+            TARGETS=("$CHOSEN_TARGET")
+          fi
+
+          for TARGET in "${TARGETS[@]}"; do
+            echo "========================================================"
+            echo "正在巡检上游: $TARGET"
+            echo "========================================================"
+
+            # 1. 检查是否有更新
+            set +e
+            python setup/sync-upstream.py --target "$TARGET" --check-only
+            CHECK_EXIT=$?
+            set -e
+
+            if [ $CHECK_EXIT -eq 0 ]; then
+              echo "[$TARGET] 已是最新版本，无需同步。"
+              continue
+            fi
+
+            echo "[$TARGET] 检测到上游新提交，开始隔离拉取..."
+            BRANCH_NAME="sync/upstream-${TARGET}-$(date +%Y%m%d)"
+
+            # 切出独立隔离分支
+            git checkout -b "$BRANCH_NAME"
+
+            # 执行定点拉取
+            python setup/sync-upstream.py --target "$TARGET"
+
+            # 2. 严格校验文件改动范围（防外溢断言）
+            echo "正在对 git 状态执行防外溢断言..."
+            CHANGED_FILES=$(git status --porcelain | awk '{print $2}')
+            BOUNDARY="Tool/upstream/${TARGET}/"
+
+            for FILE in $CHANGED_FILES; do
+              if [[ "$FILE" != "$BOUNDARY"* && "$FILE" != "setup/.upstream-shas.json" ]]; then
+                echo "::error::[FATAL] 检测到文件改动外溢出目标目录: $FILE (期望前缀: $BOUNDARY)"
+                exit 1
+              fi
+            done
+            echo "防外溢断言通过: 所有改动均严格局限在 $BOUNDARY 内！"
+
+            # 3. 运行格式规范化
+            python setup/clean-format.py
+
+            # 4. 提交并推送
+            git add .
+            if git diff --staged --quiet; then
+              echo "无实际文件内容变动，跳过提交。"
+              git checkout main
+              git branch -D "$BRANCH_NAME"
+              continue
+            fi
+
+            COMMIT_MSG="chore(upstream): sync ${TARGET} to latest upstream (sandboxed)"
+            git commit -m "$COMMIT_MSG"
+            git push origin "$BRANCH_NAME" --force
+
+            # 5. 生成 PR 说明正文并创建独立 PR
+            python setup/sync-upstream.py --make-pr-body /tmp/pr_body.md --target "$TARGET"
+
+            EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --json number --jq '.[0].number' 2>/dev/null || true)
+            if [ -n "$EXISTING_PR" ]; then
+              echo "已存在针对分支 $BRANCH_NAME 的 PR (#$EXISTING_PR)，更新正文..."
+              gh pr edit "$EXISTING_PR" --body-file /tmp/pr_body.md
+            else
+              gh pr create \
+                --title "$COMMIT_MSG" \
+                --body-file /tmp/pr_body.md \
+                --base main \
+                --head "$BRANCH_NAME"
+              echo "成功创建针对 $TARGET 的隔离同步 PR！"
+            fi
+
+            git checkout main
+          done

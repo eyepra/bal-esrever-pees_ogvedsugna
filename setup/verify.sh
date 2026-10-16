@@ -89,6 +89,7 @@ check_item "架构" "MCP专用运行时强约定 (Tool/mcp/Tool/)" test -d "$TOO
 # 1b. 版本与更新链路
 check_item "版本" "版本标识与变更日志 (VERSION + CHANGELOG.md)" test -f "$ROOT/VERSION" -a -f "$ROOT/CHANGELOG.md"
 check_item "版本" "已有用户一键更新脚本 (update.ps1 + update.sh)" test -f "$ROOT/setup/update.ps1" -a -f "$ROOT/setup/update.sh"
+check_item "架构" "上游定点防外溢规则与同步引擎 (upstream-rules.json + sync-upstream.py)" test -f "$ROOT/setup/upstream-rules.json" -a -f "$ROOT/setup/sync-upstream.py" -a -f "$ROOT/setup/sync-upstream.sh" -a -f "$ROOT/update.bat"
 check_item "版本" "一键卸载脚本 (uninstall.ps1 + uninstall.sh)" test -f "$ROOT/setup/uninstall.ps1" -a -f "$ROOT/setup/uninstall.sh"
 
 # 2. 知识库

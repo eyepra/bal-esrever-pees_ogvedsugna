@@ -32,16 +32,17 @@ MCP_JSON="$AGENT_DIR/mcp.json"
 GREEN="\033[1;32m"; RED="\033[1;31m"; YELLOW="\033[1;33m"
 CYAN="\033[1;36m"; WHITE="\033[1;37m"; GRAY="\033[0;37m"; RESET="\033[0m"
 
-DRY_RUN=0; NO_PULL=0; SKIP_VERIFY=0; STASHED=0
+DRY_RUN=0; NO_PULL=0; SKIP_VERIFY=0; STASHED=0; CHECK_ONLY=0
 WARNINGS=()
 
 for arg in "$@"; do
     case "$arg" in
         --dry-run)     DRY_RUN=1 ;;
         --no-pull)     NO_PULL=1 ;;
+        --check)       CHECK_ONLY=1 ;;
         --skip-verify) SKIP_VERIFY=1 ;;
         -h|--help)
-            echo "用法: $0 [--dry-run] [--no-pull] [--skip-verify]"
+            echo "用法: $0 [--dry-run] [--no-pull] [--check] [--skip-verify]"
             exit 0 ;;
         *) echo "未知参数: $arg" >&2; exit 2 ;;
     esac
@@ -98,6 +99,42 @@ echo -e "${CYAN}================================================================
 echo -e "  工作台根目录: $ROOT"
 
 OLD_VERSION="$(get_version)"
+
+if [ $CHECK_ONLY -eq 1 ]; then
+    echo -e "\n${CYAN}>>> 正在检查远程最新版本...${RESET}"
+    PROXY_PORT="$(detect_proxy || true)"
+    GIT_PROXY=()
+    [ -n "$PROXY_PORT" ] && GIT_PROXY=("-c" "http.proxy=http://127.0.0.1:$PROXY_PORT" "-c" "https.proxy=http://127.0.0.1:$PROXY_PORT")
+
+    if [ -d "$ROOT/.git" ]; then
+        REMOTE_LINE="$(git -C "$ROOT" "${GIT_PROXY[@]}" ls-remote origin refs/heads/main 2>/dev/null || true)"
+        LOCAL_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+        if [ -n "$REMOTE_LINE" ] && [ -n "$LOCAL_SHA" ]; then
+            REMOTE_SHA="$(echo "$REMOTE_LINE" | awk '{print $1}')"
+            if [ "$REMOTE_SHA" = "$LOCAL_SHA" ]; then
+                echo -e "  ${GREEN}[OK]${RESET} 当前工作台已是最新版本 (v$OLD_VERSION, commit ${LOCAL_SHA:0:7})"
+                exit 0
+            else
+                echo -e "  ${YELLOW}[UPDATE]${RESET} 检测到远程仓库有新版本/新提交！(本地: ${LOCAL_SHA:0:7}, 远程: ${REMOTE_SHA:0:7})"
+                echo -e "  提示: 执行 ./setup/update.sh 即可一键更新。"
+                exit 2
+            fi
+        fi
+    fi
+
+    # 通过 curl 探测 VERSION
+    CURL_PROXY=()
+    [ -n "$PROXY_PORT" ] && CURL_PROXY=("-x" "http://127.0.0.1:$PROXY_PORT")
+    R_VER="$(curl -sSL "${CURL_PROXY[@]}" --max-time 5 https://raw.githubusercontent.com/angusdevgo/Seep-Reverse-Lab/main/VERSION 2>/dev/null | tr -d '[:space:]' || true)"
+    if [ -n "$R_VER" ] && [ "$R_VER" != "$OLD_VERSION" ]; then
+        echo -e "  ${YELLOW}[UPDATE]${RESET} 检测到新版本 v$R_VER 发布！(当前本地版本: v$OLD_VERSION)"
+        echo -e "  提示: 执行 ./setup/update.sh 即可一键更新。"
+        exit 2
+    else
+        echo -e "  ${GREEN}[OK]${RESET} 当前工作台已是最新版本 (v$OLD_VERSION)"
+        exit 0
+    fi
+fi
 IS_GIT=0; [ -d "$ROOT/.git" ] && IS_GIT=1
 
 echo -e "  当前版本    : v$OLD_VERSION"

@@ -34,6 +34,7 @@ chmod +x setup/install.sh
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
 ```
+*(Windows 桌面用户亦可直接双击项目根目录下的 `update.bat` 一键更新)*
 
 **Linux / macOS**：
 ```bash
@@ -45,6 +46,13 @@ powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
 > 更新后自动跑基准自检。
 > **不要**让用户重新克隆仓库或手动拷贝文件。
 > 完成后必须提醒用户：**完全重启 Agent 会话**，然后发 `lab：` 继续开工。
+
+### 1d. 上游仓库定点隔离同步（防外溢机制）
+当需要同步上游三大开源仓库最新改动时，执行：
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup\sync-upstream.ps1 -Target all
+```
+由 `setup/upstream-rules.json` 规则驱动并由 `setup/sync-upstream.py` 执行物理路径断言，确保上游 A 仓库改动严格限定在 `Tool/upstream/A/`，绝不外溢到其他目录。
 
 ### 1c. 卸载
 若用户说 **“卸载工作台”**、**“怎么彻底删除”**、**“不想要了怎么清理”**，Agent 必须执行：

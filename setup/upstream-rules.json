@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Seep 工作台上游仓库定点纳入与防外溢隔离规则清单 (Strict-Boundary Upstream Sync Manifest)",
+  "upstreams": {
+    "apk-reverse": {
+      "name": "apk-reverse",
+      "description": "移动端 G1-G4 硬性门禁、DEX 微创修补与离线单测套件",
+      "repo": "https://github.com/Jvust2/apk-reverse-Jvust.git",
+      "branch": "main",
+      "target_dir": "Tool/upstream/apk-reverse",
+      "allowed_boundary": "Tool/upstream/apk-reverse",
+      "include": [
+        "**"
+      ],
+      "exclude": [
+        ".git/**",
+        ".github/**",
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/.DS_Store"
+      ],
+      "preserve_local": [
+        "README.md"
+      ]
+    },
+    "open-tgtylab": {
+      "name": "open-tgtylab",
+      "description": "攻防实验室架构、Zero-Waste Recon 信号路由与 G-Auth 协议",
+      "repo": "https://github.com/GeniusHu-tgty/Open-tgtylab.git",
+      "branch": "main",
+      "target_dir": "Tool/upstream/open-tgtylab",
+      "allowed_boundary": "Tool/upstream/open-tgtylab",
+      "include": [
+        "**"
+      ],
+      "exclude": [
+        ".git/**",
+        ".github/**",
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/.DS_Store",
+        "tools/windows/nmap/**"
+      ],
+      "preserve_local": [
+        "README.md"
+      ]
+    },
+    "open-reverselab": {
+      "name": "open-reverselab",
+      "description": "289+ 篇实战笔记知识库、boards 拓扑与桌面端架构参考",
+      "repo": "https://github.com/LING71671/open-reverselab.git",
+      "branch": "main",
+      "target_dir": "Tool/upstream/open-reverselab",
+      "allowed_boundary": "Tool/upstream/open-reverselab",
+      "include": [
+        "**"
+      ],
+      "exclude": [
+        ".git/**",
+        ".github/**",
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/.DS_Store",
+        "desktop/**"
+      ],
+      "preserve_local": [
+        "README.md"
+      ]
+    }
+  }
+}

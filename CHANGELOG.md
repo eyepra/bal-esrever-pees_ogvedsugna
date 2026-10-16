@@ -12,6 +12,19 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **🌐 上游定点隔离同步与防外溢体系 (Zero-Spillover Upstream Sync)**：
+  - 新增 `setup/upstream-rules.json`：声明式上游规则清单，严格绑定每个上游仓库的唯一目标目录与白名单边界。
+  - 新增 `setup/sync-upstream.py`（纯标准库）：物理边界硬性断言 (`realpath` 严格前缀匹配)，上游 A 仓库更新只能并入 A 目录，绝对阻断跨目录外溢；保留本地定制文档。
+  - 新增 `setup/sync-upstream.ps1` / `setup/sync-upstream.sh`：本地一键定点同步脚本，支持 `-Target`、`-DryRun`、`-CheckOnly`。
+  - 新增 `.github/workflows/upstream-sync.yml`：云端定时巡检工作流，发现上游新提交自动按仓库切独立分支提 PR，Diff 严格限定在专属目录内。
+  - 新增 `setup/test_sync_upstream.py`：防外溢熔断与路径越界安全单元测试套件（6 项全部通过）。
+- **⚡ 下游使用者极简更新体验升级**：
+  - 项目根目录新增 **`update.bat`** 与 **`update.ps1`**：双击即可全自动检测代理、安全暂存修改、无损增量拉取并跑完 52 项体检。
+  - 增强 `setup/update.ps1` 与 `setup/update.sh`：新增 `-Check` / `--check` 轻量版本检查，支持非阻塞版本探测。
+  - 体检系统升级至 **52 项核心校验**：全面覆盖上游规则与防外溢引擎在位状态。
+
 ### 变更
 
 - **📦 项目D 案例更新至 v1.5.0**（跨版本补丁迁移 · 五版本 AOB 特征码）

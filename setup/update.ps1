@@ -26,6 +26,7 @@
 param(
     [switch]$DryRun,        # 只显示将要做什么，不做任何修改
     [switch]$NoPull,        # 跳过 git pull（离线压缩包更新场景）
+    [switch]$Check,         # 仅检查是否有新版本可用，不执行更新
     [switch]$SkipVerify,    # 跳过最终自检
     [string]$IdaRoot = ''   # 可选：更新时顺带绑定 IDA Pro 路径
 )
@@ -90,6 +91,59 @@ Write-Host @"
 
 $oldVersion = Get-Version
 $isGitRepo = Test-Path (Join-Path $Root '.git')
+
+if ($Check) {
+    Write-Host "`n>>> 正在检查远程最新版本..." -ForegroundColor Cyan
+    $proxyPort = Test-ProxyPort -Ports @(10808, 7897, 7890)
+    $proxyArgs = if ($proxyPort) { @('-c', "http.proxy=http://127.0.0.1:$proxyPort", '-c', "https.proxy=http://127.0.0.1:$proxyPort") } else { @() }
+    
+    if ($isGitRepo) {
+        Push-Location $Root
+        try {
+            $remoteLine = (& git @proxyArgs ls-remote origin refs/heads/main 2>$null)
+            $localSha = (& git rev-parse HEAD 2>$null)
+            if ($remoteLine -and $localSha) {
+                $remoteSha = ($remoteLine -split '\s+')[0]
+                if ($remoteSha -eq $localSha) {
+                    Write-Host "  [OK] 当前工作台已是最新版本 (v$oldVersion, commit $($localSha.Substring(0,7)))" -ForegroundColor Green
+                    Pop-Location
+                    exit 0
+                } else {
+                    Write-Host "  [UPDATE] 检测到远程仓库有新版本/新提交！(本地: $($localSha.Substring(0,7)), 远程: $($remoteSha.Substring(0,7)))" -ForegroundColor Yellow
+                    Write-Host "  提示: 双击 update.bat 或执行 powershell setup/update.ps1 即可一键更新。" -ForegroundColor Cyan
+                    Pop-Location
+                    exit 2
+                }
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+
+    try {
+        $url = 'https://raw.githubusercontent.com/angusdevgo/Seep-Reverse-Lab/main/VERSION'
+        $handler = New-Object System.Net.Http.HttpClientHandler
+        if ($proxyPort) {
+            $handler.Proxy = New-Object System.Net.WebProxy("http://127.0.0.1:$proxyPort")
+        }
+        $client = New-Object System.Net.Http.HttpClient($handler)
+        $client.Timeout = [TimeSpan]::FromSeconds(5)
+        $task = $client.GetStringAsync($url)
+        $task.Wait()
+        $rVer = $task.Result.Trim()
+        if ($rVer -and $rVer -ne $oldVersion) {
+            Write-Host "  [UPDATE] 检测到新版本 v$rVer 发布！(当前本地版本: v$oldVersion)" -ForegroundColor Yellow
+            Write-Host "  提示: 双击 update.bat 或执行 powershell setup/update.ps1 即可一键更新。" -ForegroundColor Cyan
+            exit 2
+        } else {
+            Write-Host "  [OK] 当前工作台已是最新版本 (v$oldVersion)" -ForegroundColor Green
+            exit 0
+        }
+    } catch {
+        Write-Host "  [..] 暂时无法连接远程检测版本 (当前本地版本: v$oldVersion)" -ForegroundColor Gray
+        exit 0
+    }
+}
 
 Write-Host "  当前版本    : v$oldVersion" -ForegroundColor White
 Write-Host "  Git 仓库    : $(if ($isGitRepo) { '是（支持 git pull）' } else { '否（压缩包部署）' })" -ForegroundColor White

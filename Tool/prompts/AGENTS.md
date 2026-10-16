@@ -49,11 +49,18 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
 ```
-（Linux / macOS 用 `./setup/update.sh`）
+（Linux / macOS 用 `./setup/update.sh`；Windows 桌面用户亦可直接双击项目根目录的 `update.bat`）
 
 更新脚本幂等且无损：自动 `git stash` 保护本地改动 → 自动备份配置 → 增量合并 `mcp.json`（**绝不删除用户自行添加的 MCP 条目**）→ 更新后自动跑基准自检。
 完成后必须提醒用户：**完全重启 Agent 会话**，再发 `lab：` 继续开工。
 变更内容见仓库根 `CHANGELOG.md`。
+
+### 1d. 上游仓库定点隔离同步（防外溢机制）
+当需要同步 upstream 开源仓库最新改动时，执行：
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup\sync-upstream.ps1 -Target all
+```
+该脚本由 `setup/upstream-rules.json` 驱动并执行真实物理路径断言，确保上游 A 仓库内容严格只并入 A 目录（`Tool/upstream/A/`），绝对禁止外溢或污染其他目录。
 
 ### 1c. 卸载
 当用户说 **“卸载工作台”**、**“怎么彻底删除”**、**“不想要了怎么清理”** 时，直接执行：

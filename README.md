@@ -17,7 +17,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/MCP%20Tools-23%20Integrated-purple?style=for-the-badge&logo=fastapi" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/Verifier-51%2F51%20Passed-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
+  <img src="https://img.shields.io/badge/Verifier-52%2F52%20Passed-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
   <img src="https://img.shields.io/badge/Knowledge%20Base-289%20Journals-teal?style=for-the-badge" alt="Knowledge Base">
   <img src="https://img.shields.io/badge/Paradigms-14%20Cases%20(A~N)-blue?style=for-the-badge" alt="Paradigms">
   <img src="https://img.shields.io/badge/MANUAL%20SOPs-9%20Tactical%20Guides-red?style=for-the-badge" alt="MANUAL SOPs">
@@ -295,6 +295,9 @@ chmod +x setup/install.sh
 
 Already deployed? No need to re-clone or copy files by hand. The updater is **idempotent and lossless** — your model credentials and any custom MCP servers you added are never overwritten.
 
+- **Easiest for Windows**: Double-click **`update.bat`** in the repository root for zero-command automatic upgrade.
+- **In-Agent Prompt**: Simply type **"update workbench"** (or "更新工作台") in your Agent chat, and it will execute the updater and report back.
+- **CLI Commands**:
 ```powershell
 # Windows
 powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
@@ -309,10 +312,23 @@ It will: stash local changes → `git pull` → print the changelog → back up 
 | Flag | Effect |
 |---|---|
 | `-DryRun` / `--dry-run` | Show what would happen, modify nothing |
+| `-Check` / `--check` | Check if a newer version is available without pulling |
 | `-NoPull` / `--no-pull` | Skip `git pull` (for ZIP-based installs) |
 
 > ⚠️ **Always fully restart your Agent session** after updating so the new skills and extensions load.
 > See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
+### 4b. Upstream Declarative Sync & Zero-Spillover Architecture
+
+Seep packages mirrors of upstream open-source repositories (`apk-reverse`, `open-tgtylab`, `open-reverselab`). To eliminate manual merging and prevent upstream updates from polluting unrelated modules, the workbench enforces a **strict-boundary declarative sandboxing architecture**:
+
+- **Declarative Rule Manifest**: `setup/upstream-rules.json` strictly binds each upstream repo to its own target directory and allowed boundary whitelist.
+- **Physical Zero-Spillover Gate**: `setup/sync-upstream.py` (pure stdlib) asserts real canonical paths before copying. If upstream A tries to write into directory B, directory C, or the main project, it throws a `SpilloverSecurityViolation` and aborts.
+- **Isolated CI Pull Requests**: `.github/workflows/upstream-sync.yml` monitors upstream repositories on schedule. When upstream A is updated, it creates a dedicated branch and PR whose diff touches strictly `Tool/upstream/A/`.
+- **Local One-Click Sync**:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File .\setup\sync-upstream.ps1 -Target apk-reverse
+  ```
 
 ### 5. Uninstalling
 
@@ -330,7 +346,7 @@ Everything affected is backed up to `~/.pi/agent/backup-uninstall-<timestamp>/` 
 
 ### 6. Verify Your Deployment
 
-Run the 9-dimension health verifier (51 checks) against `MANUAL/DEPLOYMENT-CHECKLIST.md` using any of these methods:
+Run the 9-dimension health verifier (52 checks) against `MANUAL/DEPLOYMENT-CHECKLIST.md` using any of these methods:
 
 | Method | Command |
 |---|---|
