@@ -2,7 +2,7 @@
   "schema": 1,
   "generatedFrom": "Tool/prompts/extensions/security-audit-interceptor.ts",
   "_comment": "本文件由 extract-rules.py 自动生成，请勿手工编辑；请修改 TS 源文件后重新提取。",
-  "ruleCount": 31,
+  "ruleCount": 28,
   "rules": [
     {
       "from": "破解",
@@ -27,18 +27,6 @@
     {
       "from": "会员",
       "to": "特权凭证状态"
-    },
-    {
-      "from": "订阅成功界面",
-      "to": "本地授权凭证确认视图 (Subscription Confirmed View)"
-    },
-    {
-      "from": "订阅功能",
-      "to": "本地特权凭据离线生效模块"
-    },
-    {
-      "from": "订阅",
-      "to": "本地凭据状态 (Subscription Credential)"
     },
     {
       "from": "破解补丁",

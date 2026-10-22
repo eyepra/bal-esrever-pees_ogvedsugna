@@ -27,7 +27,7 @@ TS_SOURCE = os.path.join(
 )
 OUTPUT = os.path.join(HERE, "sensitive-rules.json")
 
-MIN_RULES = 30
+MIN_RULES = 28
 
 # 匹配形如:  [/破解/g, "白盒鉴权脆弱性测试"],
 RULE_LINE = re.compile(

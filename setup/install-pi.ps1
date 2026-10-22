@@ -71,10 +71,18 @@ if (Test-Path $srcSkills) {
 
 # ---------------------------------------------------------------- 3. 提示词 + 扩展
 $srcPrompt = Join-Path $ToolDir 'prompts'
-foreach ($f in @('SYSTEM.md', 'AGENTS.md')) {
-    $src = Join-Path $srcPrompt $f
-    if (Test-Path $src) { Copy-Item $src (Join-Path $AgentDir $f) -Force; Write-Ok "prompt: $f" }
-    else { Write-Warn "未找到 $f" }
+$srcSystem = Join-Path $srcPrompt 'SYSTEM.md'
+if (Test-Path $srcSystem) {
+    # 存为 seep-system.md 供扩展按会话动态加载，避免替换全局默认提示词污染日常对话
+    Copy-Item $srcSystem (Join-Path $AgentDir 'seep-system.md') -Force
+    $oldSystem = Join-Path $AgentDir 'SYSTEM.md'
+    if (Test-Path $oldSystem) { Remove-Item $oldSystem -Force }
+    Write-Ok "prompt: seep-system.md (会话按需加载)"
+}
+$srcAgents = Join-Path $srcPrompt 'AGENTS.md'
+if (Test-Path $srcAgents) {
+    Copy-Item $srcAgents (Join-Path $AgentDir 'AGENTS.md') -Force
+    Write-Ok "prompt: AGENTS.md"
 }
 $srcExt = Join-Path $srcPrompt 'extensions'
 if (Test-Path $srcExt) {

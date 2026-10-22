@@ -94,7 +94,10 @@ if [ -d "$TOOL_DIR/skill" ]; then
 fi
 
 # 复制提示词与扩展
-[ -f "$TOOL_DIR/prompts/SYSTEM.md" ] && cp "$TOOL_DIR/prompts/SYSTEM.md" "$AGENT_DIR/"
+if [ -f "$TOOL_DIR/prompts/SYSTEM.md" ]; then
+    cp "$TOOL_DIR/prompts/SYSTEM.md" "$AGENT_DIR/seep-system.md"
+    rm -f "$AGENT_DIR/SYSTEM.md" 2>/dev/null || true
+fi
 [ -f "$TOOL_DIR/prompts/AGENTS.md" ] && cp "$TOOL_DIR/prompts/AGENTS.md" "$AGENT_DIR/"
 if [ -d "$TOOL_DIR/prompts/extensions" ]; then
     cp "$TOOL_DIR/prompts/extensions/"*.ts "$AGENT_DIR/extensions/" 2>/dev/null || true
