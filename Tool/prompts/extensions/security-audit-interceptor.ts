@@ -14,12 +14,15 @@ import { join } from "node:path";
  *    对 OpenAI 兼容网关（DeepSeek/GLM 中转等）注入会触发 UNKNOWN_FIELD 400。
  * 2. 【双向上下文脱敏 (context)】
  *    在每次调用 LLM 前清洗所有 messages 结构，避免历史报错信息引发 Gemini 的连锁拒绝。
- * 3. 【实验环境开关（lab-mode.flag）】
- *    输入 `lab：` 进入工作环境（写标志文件）；`退出实验` 退出（删标志文件）。
- *    仅在工作环境下才启用快捷口令与敏感词替换，日常聊天零干扰。
- *    标志文件在磁盘，不随上下文/模型/会话丢失。
+ * 3. 【作战模式开关（会话级，唯一触发条件）】
+ *    输入 `lab：` 进入作战模式；`退出实验` 退出。
+ *    状态存在**进程内变量** isLabSessionActive，不写磁盘：
+ *      · 仅当前会话生效，其他窗口零干扰；
+ *      · 新会话由 session_start 强制复位为关闭；
+ *      · 进程退出即销毁，不会残留到下一次使用。
+ *    未开启时：不注入 seep-system.md、不替换词汇、不加合规前缀 —— 100% 原样透传。
  * 4. 【快捷口令 + 平滑转换 (input)】
- *    仅 lab-mode 开启时生效：poc / find-auth / hook / gen-patch / report 等短指令直达，
+ *    仅作战模式开启时生效：poc / find-auth / hook / gen-patch / report 等短指令直达，
  *    以及口语化逆向/破解输入自动转换并包裹合规授权研究前缀。
  */
 

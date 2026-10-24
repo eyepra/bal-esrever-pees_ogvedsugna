@@ -73,6 +73,27 @@
       "preserve_local": [
         "README.md"
       ]
+    },
+    "exe-reverse": {
+      "name": "exe-reverse",
+      "description": "Windows PE 深水区：PE 结构/等长补丁/AOB 签名/壳与虚拟化/.NET/IL2CPP/驱动/硬件追踪 + 16 个零依赖可执行引擎",
+      "repo": "https://codeberg.org/dabao1955/exe-reverse.git",
+      "branch": "main",
+      "target_dir": "Tool/upstream/exe-reverse",
+      "allowed_boundary": "Tool/upstream/exe-reverse",
+      "include": [
+        "**"
+      ],
+      "exclude": [
+        ".git/**",
+        ".github/**",
+        "**/node_modules/**",
+        "**/.venv/**",
+        "**/*.pyc",
+        "**/__pycache__/**",
+        "**/.DS_Store"
+      ],
+      "preserve_local": []
     }
   }
 }

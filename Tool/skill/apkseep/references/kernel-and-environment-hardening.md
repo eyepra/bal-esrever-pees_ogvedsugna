@@ -90,9 +90,53 @@ documentation (sources at the end of the section); none were re-measured here â€
   Magisk magic mount (per KernelSU FAQ, running both means one stops working); su-only coexistence
   is possible because KernelSU patches the kernel while Magisk patches the ramdisk.
 
-Sources: KernelSU README + FAQ (github.com/tiann/KernelSU), APatch FAQ (apatch.dev, project
-originally at github.com/bmax121/APatch), fetched 2026-09. Device facts (Magisk alpha on kernel
-4.14.186) are `observed` on the reference device used for this pass.
+### 2a. KernelSU module architecture & earliest execution stages
+
+KernelSU's module design deviates significantly from Magisk in two critical areas: **execution timing**
+and **file system mount mechanics**:
+
+#### 1. Execution stages (from earliest to latest)
+```
+first stage init (preinit)  --> kernel hooks selinux_setup, executes preinit.conf (pre-SELinux!)
+  init.rc parsing           --> kernel hooks read/fstat, injects initrc/*.rc directives
+    post-fs-data.sh         --> /data is mounted and writable; before services start
+      post-mount.sh         --> overlayfs mounts completed
+        service.sh          --> late_start service mode (BusyBox ash standalone)
+          boot-completed.sh --> sys.boot_completed=1 fired
+```
+
+- **`preinit/preinit.conf` (The earliest possible intervention point)**:
+  Runs during first stage init when `/system/bin/init selinux_setup` executes. This is **before SELinux
+  policies are loaded and before init.rc is parsed**.
+  - `insmod <ko> [params...]`: Loads kernel modules. KernelSU queries kernel `kallsyms` to resolve unexported
+    symbols, allowing modules to bind to internal kernel functions.
+  - `exec [-t <ms>] <prog> [args...]`: Runs static binaries under full root capabilities without SELinux
+    confinement. (Must be statically linked as `/apex` is not yet available).
+  - `write <path> <content>`: Writes directly to procfs/sysfs before framework monitors are active.
+  - *Strategic value*: Allows loading kernel-level stealth drivers or setting kernel flags before any RASP /
+    anti-root watchdog can inspect `/proc`.
+
+- **`initrc/` injection**:
+  KernelSU intercepts `read()` and `fstat()` on `/system/etc/init/hw/init.rc` in kernel space, appending
+  module `.rc` files transparently. This registers Android services (`service mydaemon ...`) and property
+  triggers (`on property:sys.boot_completed=1`) at the Android init layer without modifying `/system`.
+
+#### 2. Kernel OverlayFS vs Magisk Magic Mount
+- **Magisk**: Uses user-space `magic mount` (bind mounting individual files).
+- **KernelSU**: Uses Linux kernel native `overlayfs` over `/system`:
+  - **Whiteout deletion**: In module directory, running `mknod <file> c 0 0` (or specifying `REMOVE` in
+    `customize.sh`) creates a character device 0/0. OverlayFS treats this as a whiteout node, masking
+    the underlying system file as deleted without modifying the physical partition.
+  - **Opaque directory replacement**: Setting extended attribute `setfattr -n trusted.overlay.opaque -v y <dir>`
+    (or `REPLACE` in `customize.sh`) replaces an entire system directory with the module's overlay.
+
+#### 3. Deterministic environment & Zygisk bridging
+- **BusyBox ash standalone mode**: KernelSU sets `ASH_STANDALONE=1`. Commands like `ls`, `grep`, `chmod` inside
+  module scripts always invoke the built-in BusyBox implementations rather than vendor toybox binaries.
+- **Zygisk via ZygiskNext**: KernelSU does not implement Zygisk in-kernel. Third-party `ZygiskNext` provides
+  the zygote injection hook, creating the identical Zygisk environment required by LSPosed.
+
+Sources: KernelSU official documentation (kernelsu.org/guide/module.html) & source repository (github.com/tiann/KernelSU).
 
 ## 3. Environment-hiding modules: Zygisk-Assistant vs Shamiko
 

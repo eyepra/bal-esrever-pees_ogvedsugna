@@ -30,8 +30,11 @@ python relay.py --scan-pi
 python relay.py
 ```
 
-启动后控制台会打印接入示例与访问令牌。**默认关闭改写**：只有 `~/.pi/agent/lab-mode.flag`
-存在（即已在 Agent 中发送过 `lab：`）时才启用。
+启动后控制台会打印接入示例与访问令牌。**默认关闭改写**：只有 `~/.pi/agent/compliance-relay.flag`
+存在时才启用（`touch` 创建、`rm` 关闭，mtime 热加载）。
+
+> 中继是**传输层独立开关**，与 Agent 会话是否处于作战模式解耦。
+> 旧的 `~/.pi/agent/lab-mode.flag` 仍被识别（向后兼容），但已不推荐使用。
 
 ### 常用参数
 

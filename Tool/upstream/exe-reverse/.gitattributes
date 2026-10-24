@@ -1,0 +1,25 @@
+# Normalize line endings so a Windows checkout does not rewrite committed files.
+# Scripts stay LF (they are consumed by python/node on POSIX hosts and by the test suite anywhere).
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.js    text eol=lf
+*.sh    text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+
+# PowerShell, cmd and batch are the one thing that is happier with CRLF on Windows.
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Never normalize binary-ish artifacts.
+*.png   binary
+*.exe   binary
+*.dll   binary
+*.pdb   binary
+*.sys   binary
+*.lib   binary
+*.zip   binary

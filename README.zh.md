@@ -57,7 +57,7 @@
 
 | 痛点 | 解决方案 |
 |---|---|
-| 🔧 **工具链高度碎片化** | 23 个 MCP 工具封装 Radare2/JADX/Apktool/Frida，统一调度，零手动切换 |
+| 🔧 **工具链高度碎片化** | 27 个 MCP 工具封装 Radare2/JADX/Apktool/Frida/PE 引擎，统一调度，零手动切换 |
 | 🧠 **大模型缺乏决断逻辑** | `softseep` 总控：两级自动判型（平台 × 9 类业务）+ 七道门决策树 |
 | 🛡️ **云端模型频繁拒绝** | 三层保险：底座级 `BLOCK_NONE` 注入 + 动态口语合规转译 + 推理级思维重定向 |
 | 📚 **实战经验无法沉淀** | 289 篇战术实战笔记 + 14 大脱敏工业范式 + "先查知识库再动手"强制纪律 |
@@ -72,7 +72,7 @@
     │
     ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│  Lab Mode 状态机  (磁盘标志文件 ~/.pi/agent/lab-mode.flag)        │
+│  Lab Mode  (会话级内存；只在本窗口输入 lab：才生效)              │
 │  • 口语 → 合规术语自动转译（"破解" → CWE-602 旁路验证）           │
 │  • BLOCK_NONE 注入 + 推理级防拒绝认知重定向                       │
 │  • 状态持久化：切换模型/压缩上下文后依然生效                       │
@@ -83,12 +83,12 @@
 │  softseep  总控调度器                                            │
 │  ① 平台判型 → Windows PE / Android APK / Linux ELF / Web        │
 │  ② 业务判型 → 9 大范式 × 七道门（G0–G6 决策树）                  │
-│  ③ 路由分发 → apkseep / ida-reverse / seep MCP / 知识库          │
+│  ③ 路由分发 → exe-reverse / apkseep / ida-reverse / seep MCP / 知识库 │
 └─────────┬────────────────┬──────────────────┬─────────────────────┘
           │                │                  │
           ▼                ▼                  ▼
     seep MCP          IDA Pro MCP         知识库检索
-    23 个工具          (可选联动)          289 篇战术笔记
+    27 个工具          (可选联动)          289 篇战术笔记
     (R2/JADX/                             (Zero-Waste Recon)
      Apktool/Frida)
           │
@@ -148,6 +148,7 @@ Agent 自主完成：
 - ⚡ **DeepSeek Harness (DSH) 秒级自愈套件**：解决官方与插件在 Windows 上的扫描超时与端口冲突，4 秒极速冷启动，自动提取 Token URL 与 MCP 在线核验 (`start-dsh.ps1` / `stop-dsh.ps1`)
 - 🛡️ **实测抗拒答综合防线**：Gemini-Safe 提示词语义重塑（`gemini-safe.flag`，377 token 拒答 → 3300 字深度分析）、L1 拦截器动态可观测日志（`l1-log.flag`）、底座级 `BLOCK_NONE` 注入
 - 🔌 **离线预置全量内置**：所有工具链物理打包（251 MB），部署后零外网依赖
+- 🪟 **Windows PE 深水区引擎（`exe-reverse`）**：41 篇带门禁的参考文档 + **16 个零依赖 Python 引擎** —— `peutil`（RVA↔偏移、导入导出/TLS/重定位、微软校验和、逐节熵）、`pe_triage`、`pepatch`（等长补丁 + 校验和重算 + **写盘后逐字节回读**）、`aob_scan`（unique/ambiguous/pervasive 裁决）、`pe_diff`、`hwprobe`、`trace_reduce`（可选 SMT 证明）、`fold`。覆盖保护壳、虚拟化/控制流平坦化、.NET、Unity IL2CPP、打包 Python、内核驱动、硬件追踪与 Hypervisor 观测
 
 ---
 
@@ -169,15 +170,16 @@ Seep\ (251 MB)
 ├── CHANGELOG.md                   ← 面向用户的版本变更日志
 │
 ├── Tool\
-│   ├── skill\                     ← 9 大逆向专业技能
-│   │   ├── softseep\              ← ⭐ 总控调度器（路由 + 8 专题按需库）
+│   ├── skill\                     ← 10 大逆向专业技能
+│   │   ├── softseep\              ← ⭐ 总控调度器（路由 + 10 专题按需库）
+│   │   ├── exe-reverse\           ← Windows PE 深水区（41 篇规范 + 16 个引擎）
 │   │   ├── apkseep\               ← Android 全链路逆向（115 个工程文件）
 │   │   ├── ida-reverse\           ← IDA Pro 自动化联动
 │   │   ├── client-license-validation-bypass\ ← 跨运行时卡密/授权攻防手册
 │   │   └── safe-skills\           ← 5 个独立战术工具包
 │   │
 │   ├── mcp\                       ← MCP 服务引擎
-│   │   ├── seep_mcp_server.py     ← 核心服务端，23 个底层分析工具
+│   │   ├── seep_mcp_server.py     ← 核心服务端，27 个底层分析工具
 │   │   └── Tool\                  ← ⚠️ 硬编码相对路径，禁止重命名/搬移
 │   │       ├── safe\              ← 物理内置工具箱
 │   │       │   ├── jadx\          ← 75 MB（v1.5.6）
@@ -195,10 +197,11 @@ Seep\ (251 MB)
 │   │   └── extensions\            ← BLOCK_NONE 注入 + 口语合规转译
 │   │
 │   ├── cases\                     ← 14 大脱敏工业案例库（项目 A ~ N，含版本演进归档 v2）
-│   ├── upstream\                  ← 上游溯源验证层（3大开源项目完整镜像）
+│   ├── upstream\                  ← 上游溯源验证层（4 大开源项目完整镜像）
 │   │   ├── apk-reverse\           ← newliver666/apk-reverse（Android 逆向与离线测试集）
 │   │   ├── open-tgtylab\          ← GeniusHu-tgty/Open-tgtylab（攻防流水线与提效路由）
-│   │   └── open-reverselab\       ← LING71671/open-reverselab（知识库、boards与工具生态）
+│   │   ├── open-reverselab\       ← LING71671/open-reverselab（知识库、boards 与工具生态）
+│   │   └── exe-reverse\           ← dabao1955/exe-reverse（Windows PE 深水区证据记录与回归套件）
 │   ├── docs\                      ← 工程参考文档
 │   └── scripts\                   ← 工作流自动化脚本
 │       └── compliance-relay\      ← 🌐 链路层合规转译中继（纯标准库，三协议）
@@ -223,7 +226,7 @@ Seep\ (251 MB)
 
 ## 🛠️ MCP 工具矩阵
 
-自研 `seep` MCP 服务暴露 **23 个原生工具**，分五大功能组：
+自研 `seep` MCP 服务暴露 **27 个原生工具**，分六大功能组：
 
 | 分类 | 工具 | 核心功能 | 上下文控制 |
 |---|---|---|---|
@@ -238,6 +241,10 @@ Seep\ (251 MB)
 | | `seep_r2_diff` | 两份二进制代码 / Hex 差分 | — |
 | | `seep_r2_asm` | 汇编 ↔ 机器码互转 | — |
 | | `seep_r2_cmd` | 底层 Radare2 管道命令 | — |
+| **Windows PE** | `seep_pe_triage` | PE 一次过体检：节区/熵、导入表、PDB、CLR、校验和、保护信号 | — |
+| | `seep_pe_aob_scan` | AOB 特征码定位 + `unique` / `ambiguous` / `pervasive` 裁决 | `limit=` |
+| | `seep_pe_diff` | 跨版本差分（归一化易变头字段，差异映射回 RVA） | — |
+| | `seep_pe_patch` | 可验证等长补丁：校验和重算 + 写盘后逐字节回读 | `dry_run=` |
 | **Android 逆向** | `seep_apk_info` | APK 清单 / 权限 / 签名（免 Java）| — |
 | | `seep_apk_decompile` | JADX 全量 Java 源码反编译 | — |
 | | `seep_apk_unpack` | Apktool 资源 + Smali 解包 | — |
@@ -251,6 +258,8 @@ Seep\ (251 MB)
 | | `seep_auto_triage` | 未知样本全量自动体检 | — |
 | | `seep_gen_security_report` | 三段式合规安全报告生成 | — |
 
+> 💡 **PE 引擎护栏**：`seep_pe_patch` 拒绝原地覆盖、默认拒绝改变长度、`expect=` 与实际字节不符时直接中止。四个 PE 工具中只有 `seep_pe_patch` 会写盘，其余三个只读。
+>
 > 💡 **上下文预算控制（v1.1）**：`seep_r2_decompile` 使用 `output_mode=fold` 可减少约 60% Token 消耗；`summary` 模式减少约 90%。使用 `seep_r2_xrefs` 替代原始 `axt` 命令，避免数百条引用直接灌满上下文窗口。
 
 ---
@@ -317,7 +326,7 @@ powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
 
 ### 4b. 上游仓库定点隔离同步（防外溢机制）
 
-工作台整合了多个开源上游项目（如 `apk-reverse`、`open-tgtylab`、`open-reverselab`）。为了解决上游作者在 GitHub 更新后手动合并繁琐且易污染其他模块的问题，工作台确立了**「单源单目录、零外溢」**的声明式同步机制：
+工作台整合了四个开源上游项目（`apk-reverse`、`open-tgtylab`、`open-reverselab`、`exe-reverse`）。为了解决上游作者在 GitHub 更新后手动合并繁琐且易污染其他模块的问题，工作台确立了**「单源单目录、零外溢」**的声明式同步机制：
 
 - **声明式规则清单**：`setup/upstream-rules.json` 严格绑定每一个上游仓库的唯一目标目录与边界白名单；
 - **物理防外溢断言**：`setup/sync-upstream.py` 纯标准库引擎在写入前执行 `realpath` 前缀物理路径断言，若 A 仓库的内容试图写到 B/C 目录或主工程，立即抛出 `SpilloverSecurityViolation` 异常并熔断拦截；
@@ -359,12 +368,15 @@ powershell -ExecutionPolicy Bypass -File ./setup/uninstall.ps1          # 再执
 
 ## 🎮 操作工作流与 Lab Mode
 
-### Lab Mode 协议（磁盘状态机）
+### Lab Mode 协议（会话级触发）
 ```
 激活：  lab：                          # 或：lab：分析 FooBar.exe
 退出：  退出实验
 ```
-- 状态存于磁盘 `~/.pi/agent/lab-mode.flag` — **切换模型/上下文压缩后依然持久**
+- **触发条件唯一**：不输入 `lab：` 就什么都不发生，新会话默认干净
+- **隔离范围是会话**：状态存在扩展进程内存（`isLabSessionActive`），由 `session_start` 复位；
+  其他终端窗口完全不受影响，进程退出即销毁，不会残留
+- 全局 `AGENTS.md` 明文禁止非 lab 会话加载逆向技能或调用 `seep_*` 工具，日常编码/运维保持纯净
 - 激活后：口语自动合规转译、防拒绝覆盖、快捷口令展开全部生效
 - 日常闲聊在 Lab Mode 外原样透传，零干扰
 
@@ -417,6 +429,9 @@ powershell -ExecutionPolicy Bypass -File ./setup/uninstall.ps1          # 再执
 - 自动化重打包：STORED 资源 + 4 字节 Zipalign + v1+v2+v3 签名
 
 ### 3. 二进制 / Native 逆向（PE / ELF / Mach-O）
+- **`exe-reverse` 深水区层**：PE 结构与体检、等长补丁（校验和重算 + 写盘回读）、AOB 特征码唯一性裁决、跨版本差分、壳/保护识别、虚拟化与控制流平坦化、算法还原、符号执行
+- **运行时专项路线**：托管 .NET（含混淆）、Unity IL2CPP 元数据、打包 Python（PyInstaller / Nuitka / pyarmor）、Flutter Dart AOT、内核驱动
+- **硬件观测层**：硬件断点、Intel PT 指令追踪、ETW、Hypervisor 辅助观测 —— 用于“所有软件 hook 都被检测”的目标
 - Radare2 无头模式：架构识别、熵扫描、符号提取、类 C 伪代码
 - IDA Pro MCP 全链路：Hex-Rays 反编译、交叉引用、结构体恢复
 - 反调试对抗：故意崩溃 Stub、`svc` 直接系统调用、内核级驱动检测（参见 `MANUAL/ANTI-DEBUG.md`）
@@ -457,6 +472,7 @@ powershell -ExecutionPolicy Bypass -File ./setup/uninstall.ps1          # 再执
 - 特别致谢开源项目 [**newliver666/apk-reverse**](https://github.com/newliver666/apk-reverse)（MIT License）提供的 Android 逆向门控范式与验证体系。
 - 特别致谢开源项目 [**GeniusHu-tgty/Open-tgtylab**](https://github.com/GeniusHu-tgty/Open-tgtylab)（GPL-3.0 License）提供的安全实验室架构与 Zero-Waste Recon 攻防提效体系。
 - 特别致谢开源项目 [**LING71671/open-reverselab**](https://github.com/LING71671/open-reverselab)（GPL-3.0 License）提供的实战攻防知识库、攻击网拓扑与 MCP 自动化工具生态。
+- 特别致谢开源项目 [**dabao1955/exe-reverse**](https://codeberg.org/dabao1955/exe-reverse)（MIT License）提供的 Windows PE 深水区方法论、带门禁的作业流程与零依赖 PE 引擎。
 - 感谢 [**LINUX DO**](https://linux.do/) 社区提供的高质量技术交流氛围。
 
 ---

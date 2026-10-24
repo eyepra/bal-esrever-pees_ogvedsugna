@@ -183,14 +183,22 @@ python relay.py
 
 ### 步骤 4：确认 Lab Mode 已开启
 
-中继默认**只在 Lab Mode 下改写**。在 Pi 中发送一次：
+中继的改写开关是**独立的传输层开关**，与会话是否处于作战模式解耦。
 
-```
-lab：
+启用方式（任一）：
+
+```bash
+# 推荐：创建独立开关文件（mtime 热加载，无需重启中继）
+touch ~/.pi/agent/compliance-relay.flag        # PowerShell: New-Item ~/.pi/agent/compliance-relay.flag
+
+# 或：启动时强制开启
+python relay.py --force-on
 ```
 
-即可写入 `~/.pi/agent/lab-mode.flag`，中继会在下一次请求时自动热加载启用。
-发送 `退出实验` 后中继自动转为纯透传（无需重启中继进程）。
+删除该文件后，中继在下一次请求时自动转为纯透传（无需重启进程）。
+
+> **为什么不再用 `lab-mode.flag`**：`lab：` 已改为**会话级内存状态**，磁盘上不再有人写该文件，
+> 若继续以它为门，中继会永远关闭。旧文件仍被识别（向后兼容），但不建议再依赖。
 
 ---
 

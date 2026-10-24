@@ -1,0 +1,33 @@
+# flake8 configuration for this repository.
+#
+# Three settings, each with the measurement behind it rather than a preference.
+#
+# max-line-length = 120
+#   Measured before this file was added: the longest line across *.py and
+#   skills/exe-reverse/scripts/*.py is 110 characters (trace_reduce.py:666). 120 leaves room for a
+#   rule table or a format string written on one line without forcing a split inside a raw regex,
+#   which either changes the pattern or produces a concatenation harder to read than the long line.
+#   A line over 120 is a defect to look at, not a style disagreement.
+#
+# max-complexity is not set, and C901 is excluded below with the measurement: this repository's
+# parsers and dispatchers are long flat if/elif chains over finding kinds and PE structures. Setting
+# a threshold above the maximum would be a number chosen to pass rather than a standard; splitting
+# them into one function per case would move the shape of the format away from the code that reads
+# it, and looking like the specification is this repository's argument.
+#
+# extend-ignore:
+#   C901  see above -- reported here as a measurement, not enforced
+#   E203  slice whitespace (`data[start : end]`); flake8 and every autoformatter disagree, and the
+#         repository has no autoformatter
+#
+# Run from the repository root:
+#   flake8 *.py skills/exe-reverse/scripts/*.py
+#
+# Enforced in CI: the `lint` job in .github/workflows/ci.yml runs this exact command alongside mypy,
+# on a bare interpreter, so the configuration is exercised in the poorest environment it must keep
+# working in.
+
+[flake8]
+max-line-length = 120
+extend-ignore = C901,E203
+exclude = .git,__pycache__,tools,build,dist

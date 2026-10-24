@@ -73,7 +73,28 @@ The mechanism matters because every failure mode below is a consequence of it.
   is packed). It is the handle you use to find classes the app loads later, and it is also the object
   anti-Xposed code counts — see *What detects you anyway*.
 
+## Two API generations — Classic XposedBridge vs Modern libxposed (Vector)
+
+In 2026, the module ecosystem operates across two distinct API generations. Understanding both is
+mandatory: **Classic API 82** is the universal standard for production deliverables and existing module
+reversing; **Modern libxposed (API 100+)** is the forward architecture supported by active forks such
+as **Vector** and **LSPosed_mod** on Android 14/15+.
+
+| Dimension | Classic XposedBridge (API 82/93) | Modern libxposed (API 100/101/102) |
+|---|---|---|
+| Active runtimes | LSPosed 1.9.2 (baseline), LSPosed_mod, EdXposed | Vector (JingMatrix), LSPosed_mod (mywalkb) |
+| Entry file | `assets/xposed_init` (one-line entry class) | `META-INF/xposed/java_init.list` |
+| Manifest meta-data | `<meta-data android:name="xposedmodule" android:value="true"/>` | `xposedmodule`, `xposedminversion` (`100`+), `xposedscope` |
+| Entry interface | `de.robv.android.xposed.IXposedHookLoadPackage` | `io.github.libxposed.api.XposedModule` |
+| Hook paradigm | `XC_MethodHook` (`beforeHookedMethod` / `afterHookedMethod`) | OkHttp-style **Interceptor Chain Model** (`Hooker`) |
+| Unhooking | Static `XC_MethodHook.Unhook` | First-class `MethodUnhooker` object |
+| Resource hook | Supported via `XResources` | **Permanently removed** (use method hook on Views instead) |
+| IPC / Services | Ad-hoc (ContentProvider, socket, SharedPreferences) | Built-in `libxposed/service` cross-process bridge |
+| Recommended use | **Production & reverse engineering default** (100% compatible) | Forward-looking research on Android 14/15+ GKI devices |
+
 ## Minimal module anatomy
+
+### 1. Classic API 82 anatomy (Universal compatibility)
 
 Four files. Nothing else is required — no `res/`, no launcher Activity, no permissions.
 
@@ -84,12 +105,25 @@ Four files. Nothing else is required — no `res/`, no launcher Activity, no per
 | `assets/xposed_init` | one line: the fully qualified entry class. A typo here produces a module that loads and silently does nothing |
 | the entry class implementing `IXposedHookLoadPackage` | the only class LSPosed instantiates for you |
 
-`scripts/lsposed_scaffold.py` writes exactly this set, plus a README containing the build chain below,
-so the project is reproducible without Gradle:
+### 2. Modern libxposed API 101 anatomy (Vector standard)
+
+| File | Why it is required |
+|---|---|
+| `AndroidManifest.xml` with `xposedmodule=true`, `xposedminversion=100`, `xposedscope` | `xposedscope` declares target packages directly in the manifest |
+| `META-INF/xposed/java_init.list` | one line naming the class extending `XposedModule` |
+| `META-INF/xposed/module.prop` | optional module properties (minApiVersion, targetApiVersion) |
+| the entry class extending `XposedModule` | lifecycle callbacks: `onPackageLoaded(PackageLoadedParam)` |
+
+`scripts/lsposed_scaffold.py` supports both generations via `--api legacy` (default) and `--api modern`:
 
 ```sh
+# Classic API 82 (Zero-Gradle, fastest build)
 lsposed_scaffold.py --package com.example.probe --name "Example probe" \
     --hook-target com.example.target --out ./module
+
+# Modern libxposed API 101 (Vector / Android 14+)
+lsposed_scaffold.py --api modern --package com.example.probe --name "Modern probe" \
+    --hook-target com.example.target --out ./module_modern
 ```
 
 The generated entry class logs on **every** scoped process load before anything else, and hooks
@@ -294,6 +328,130 @@ Engineering consequences for anyone choosing this route:
   (`references/detection-and-anti-analysis.md`), not something to escalate against indefinitely.
 - If the target's check is native and inline-hooks *your* detector's counterpart, you are in DBI
   territory: `references/native-dbi-and-deobfuscation.md`.
+
+## Dynamic ClassLoader hooking (handling packed, plugin, and late-loaded classes)
+
+In hardened applications, plugins, or hotfix frameworks (Tinker, Sophix), target business classes are
+not present when `handleLoadPackage` first fires. Calling `XposedHelpers.findClass` immediately throws
+`ClassNotFoundError`.
+
+The deterministic strategy is to hook the birth of the **child ClassLoader**:
+
+```java
+// Pattern 1: Hook PathClassLoader & DexClassLoader constructors
+Class<?> baseLoaderCls = XposedHelpers.findClass("dalvik.system.BaseDexClassLoader", null);
+XposedBridge.hookAllConstructors(baseLoaderCls, new XC_MethodHook() {
+    @Override
+    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+        ClassLoader cl = (ClassLoader) param.thisObject;
+        Class<?> targetCls = XposedHelpers.findClassIfExists("com.target.pkg.AuthManager", cl);
+        if (targetCls != null) {
+            XposedBridge.log("[+] Target class resolved in dynamic loader: " + cl);
+            installBusinessHooks(targetCls);
+        }
+    }
+});
+
+// Pattern 2: Hook ClassLoader.loadClass when ClassLoader instance is already pinned
+XposedHelpers.findAndHookMethod(ClassLoader.class, "loadClass", String.class, boolean.class, new XC_MethodHook() {
+    @Override
+    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+        String className = (String) param.args[0];
+        if ("com.target.pkg.AuthManager".equals(className)) {
+            Class<?> targetCls = (Class<?>) param.getResult();
+            installBusinessHooks(targetCls);
+        }
+    }
+});
+```
+
+## Reverse engineering unknown LSPosed modules (4-step SOP)
+
+The golden rule: **"Forward development guides reverse analysis"** (以正向开发指导逆向分析).
+When auditing or reverse engineering an unknown LSPosed module APK, execute this deterministic 4-step sequence:
+
+### Step 1 — Entry point identification
+- Check `assets/xposed_init` (Classic API) or `META-INF/xposed/java_init.list` (Modern libxposed / Vector).
+- If neither exists, unpack the APK and check `AndroidManifest.xml` for `xposedmodule`. Under Jadx,
+  search for classes implementing `IXposedHookLoadPackage` or extending `XposedModule`.
+- Note the entry class name (e.g. `com.mod.hook.MainHook`).
+
+### Step 2 — Target scope & process gating
+- Run `aapt2 dump xmltree <module.apk>` or inspect `AndroidManifest.xml`:
+  - `xposedscope`: inspect target package names declared at the manifest layer;
+  - Inside the entry class: inspect `lpparam.packageName` comparisons or static `TARGET_PACKAGE` arrays.
+  - This identifies *which* application and process the module intends to modify.
+
+### Step 3 — Deobfuscating hook calls & signature recovery
+- **Classic API**: Look for `XposedHelpers.findAndHookMethod(cls, "methodName", paramTypes..., callback)`.
+  If method names are obfuscated (`a.b(c, d)`), inspect the argument types and the `param.setResult(...)` payload.
+  In `beforeHookedMethod`, `param.setResult(true)` or `param.setResult(null)` represents **logic short-circuiting**
+  (e.g., VIP validation, signature check bypass, ad suppression).
+- **Dynamic Signature Matching**: If the author used reflection to bypass ProGuard changes (e.g., looping
+  `cls.getDeclaredMethods()` to find a method with 2 `String` parameters and a `boolean` return), trace the
+  matching criteria to identify the target semantic method.
+
+### Step 4 — JNI and Native hook inspection
+- If Java hooks delegate to `native void doInit()` or `System.loadLibrary("hook")`:
+  - Extract `lib/<abi>/lib*.so` from the module APK;
+  - Open in Ghidra / IDA Pro (`mcp_ida_*` or `seep_r2_*`);
+  - Check `JNI_OnLoad` for dynamic registration (`RegisterNatives`) or inline hooking engines (LSPlant, Dobby, Substrate).
+
+## Dynamic auxiliary arsenal (zero-repack on-device validation)
+
+Before building a full custom module or when triaging rapid hypotheses, leverage these established on-device modules:
+
+| Tool / Module | Package ID | Primary capability | When to use |
+|---|---|---|---|
+| **算法助手 (Algorithm Aide)** | `com.junge.algorithmaide` | Automatically hooks standard Java crypto APIs (`Cipher`, `MessageDigest`, `Mac`, `KeyStore`) and dumps AES/RSA keys & plaintexts. | App performs encrypted HTTP traffic or token signing; saves hours of static crypto reversing. |
+| **SimpleHook** | `me.simplehook` | GUI-configured live method hook tool; force replaces return values (`setResult`) and modifies parameters without coding. | Quickly verifying if flipping a `checkAuth()` boolean to `true` actually unlocks the feature. |
+| **LSPilot** | `me.yun.lspilot` | AI-assisted dynamic instrumentation module for automated logging and call trace collection. | Complex multi-step protocol flows and automated method tracking. |
+
+### Tool triage: SimpleHook vs Frida vs LSPosed module
+
+```
+Rapid hypothesis test (need no code) ────► SimpleHook (GUI toggle return value)
+Interactive discovery & protocol dump ──► Frida (interactive JS hooks, memory scan)
+Long-term, unattended, reboot-proof ────► LSPosed Module (packaged APK deliverable)
+```
+
+## AI prompt templates for module reverse engineering
+
+When collaborating with an LLM to decompile and reconstruct an LSPosed module:
+
+### Scenario 1: Entry analysis and scope extraction
+```text
+这是一个基于 LSPosed 开发的模块。我查看了其 assets/xposed_init（或 META-INF/xposed/java_init.list），
+其入口类是 <包名.类名>。以下是该类的 Jadx 反编译代码：
+```java
+<在此粘贴反编译代码>
+```
+请帮我分析：
+1. 它主要 Hook 了哪个目标 App（包名与组件）？
+2. 具体拦截并修改了哪些核心方法，其修改意图是什么（短路、改参、还是记录）？
+```
+
+### Scenario 2: Deobfuscating hook logic & parameters
+```text
+这段 Java 代码是从一个 Xposed 模块中反编译出来的，变量名和方法名被严重混淆了。
+结合它调用的 findAndHookMethod 与 before/after 回调：
+```java
+<在此粘贴反编译代码>
+```
+请帮我：
+1. 结合 param.args[] 的索引与操作，推测各个混淆变量的业务语义；
+2. 还原它对目标方法的修改逻辑，并输出重构后的清晰伪代码。
+```
+
+### Scenario 3: JNI Native intent & dynamic log correlation
+```text
+该模块在 Java 层调用了 native 方法 <方法名>，并在底层加载了 .so 库。
+以下是使用 Frida 追踪到的该函数调用参数与堆栈日志：
+```text
+<在此粘贴日志>
+```
+结合该日志与反编译出的 Java 上下文，请分析它底层的鉴权校验逻辑或 Hook 拦截意图。
+```
 
 ## LSPosed vs Frida — the division of labour
 

@@ -18,34 +18,38 @@
 
 ---
 
-## 二、Skill 溯源（9 个）
+## 二、Skill 溯源（10 个）
 
 | # | Skill | 本包位置 | 安装目标 | 文件数 | 体积 |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| 1 | **softseep** ⭐总控 | `Tool/skill/softseep/` | `~/.pi/agent/skills/softseep/` | 9 | 364 KB |
-| 2 | **apkseep** | `Tool/skill/apkseep/` | `~/.pi/agent/skills/apkseep/` | 115 | 2.2 MB |
-| 3 | **ida-reverse** | `Tool/skill/ida-reverse/` | `~/.pi/agent/skills/ida-reverse/` | 1 | 4 KB |
-| 4 | **client-license-validation-bypass** | `Tool/skill/client-license-validation-bypass/` | `~/.pi/agent/skills/` | 1 | 32 KB |
-| 5 | **reverse-engineering** | `Tool/skill/safe-skills/reverse-engineering/` | 同上 | 15 | 380 KB |
-| 6 | **apk-reverse** | `Tool/skill/safe-skills/apk-reverse/` | 同上 | 8 | 52 KB |
-| 7 | **radare2** | `Tool/skill/safe-skills/radare2/` | 同上 | 3 | 20 KB |
-| 8 | **mcp-js-reverse-playbook** | `Tool/skill/safe-skills/mcp-js-reverse-playbook/` | 同上 | 13 | 24 KB |
-| 9 | **ida-reverse**（safe 版） | `Tool/skill/safe-skills/ida-reverse/` | 同上 | 3 | 28 KB |
+| 1 | **softseep** ⭐总控 | `Tool/skill/softseep/` | `~/.pi/agent/skills/softseep/` | 11 | 164 KB |
+| 2 | **exe-reverse** | `Tool/skill/exe-reverse/` | `~/.pi/agent/skills/exe-reverse/` | 65 | 1.5 MB |
+| 3 | **apkseep** | `Tool/skill/apkseep/` | `~/.pi/agent/skills/apkseep/` | 115 | 2.2 MB |
+| 4 | **ida-reverse** | `Tool/skill/ida-reverse/` | `~/.pi/agent/skills/ida-reverse/` | 1 | 4 KB |
+| 5 | **client-license-validation-bypass** | `Tool/skill/client-license-validation-bypass/` | `~/.pi/agent/skills/` | 1 | 32 KB |
+| 6 | **reverse-engineering** | `Tool/skill/safe-skills/reverse-engineering/` | 同上 | 15 | 380 KB |
+| 7 | **apk-reverse** | `Tool/skill/safe-skills/apk-reverse/` | 同上 | 8 | 52 KB |
+| 8 | **radare2** | `Tool/skill/safe-skills/radare2/` | 同上 | 3 | 20 KB |
+| 9 | **mcp-js-reverse-playbook** | `Tool/skill/safe-skills/mcp-js-reverse-playbook/` | 同上 | 13 | 24 KB |
+| 10 | **ida-reverse**（safe 版） | `Tool/skill/safe-skills/ida-reverse/` | 同上 | 3 | 28 KB |
 
 ### ⚠ 上游开源归属与完整镜像（合规声明）
 
-本工作台深度融合并完整归档了以下三大开源项目镜像于 `Tool/upstream/`：
+本工作台深度融合并完整归档了以下**四大**开源项目镜像于 `Tool/upstream/`：
 
 | 项目 | 上游仓库 | 许可协议 | 本包镜像位置 | 核心集成与贡献 |
 | :--- | :--- | :--- | :--- | :--- |
 | **apk-reverse** | https://github.com/newliver666/apk-reverse | MIT License | `Tool/upstream/apk-reverse/` | 移动端 G1-G4 硬性门禁、DEX 微创修补、离线测试套件与能力自检 |
 | **Open-tgtylab** | https://github.com/GeniusHu-tgty/Open-tgtylab | GPL-3.0 License | `Tool/upstream/open-tgtylab/` | 攻防实验室架构、Zero-Waste Recon 信号路由、反退缩指令与 G-Auth 协议 |
 | **open-reverselab** | https://github.com/LING71671/open-reverselab | GPL-3.0 License | `Tool/upstream/open-reverselab/` | 289+ 篇实战笔记知识库、boards 攻击网拓扑、MCP 自动化工具组件 |
+| **exe-reverse** | https://codeberg.org/dabao1955/exe-reverse | MIT License | `Tool/upstream/exe-reverse/` | Windows PE 深水区方法论、O1–O5/G1–G5 门禁、16 个零依赖 PE 引擎与证据记录 |
 
 **上游比衍生组件保留的完整价值**：
 - `Tool/upstream/apk-reverse/tests/`：包含 24 个离线 stdlib 单测套件与 benchmark 矩阵。
 - `Tool/upstream/open-tgtylab/`：包含全套 CTF 24h 自动化工作流与跨 agent 指令配置。
 - `Tool/upstream/open-reverselab/`：包含完整的桌面端架构、boards 拓扑与 MCP 原始实现。
+- `Tool/upstream/exe-reverse/tests/`：包含离线回归套件（`pytest -q`）与 benchmark 矩阵；
+  `docs/tool-verification/` 是每条能力结论的证据记录（观察命令 + 输出 + 强度标签）。
 
 > **为什么全量入包**：保留完整上游不仅保障开源协议合规性，更便于在断网隔离的离线靶场环境下直接对照原始测试用例与开发参考。
 
@@ -54,14 +58,16 @@
 
 ```
 softseep/
-├── SKILL.md                    ← 总控（253 行）：G-Auth 门 + 自动判型 + 路由矩阵
+├── SKILL.md                    ← 总控：G-Auth 门 + 自动判型 + 路由矩阵 + 门禁命名空间铁律
 └── references/                 ← 按需加载，不预先全读
-    ├── windows-sop.md          6 步标准化流水线
+    ├── windows-sop.md          6 步标准化流水线（交付流程）
+    ├── windows-deep.md         Windows 深水区桥接：中文意图 → exe-reverse 参考文件
+    ├── gate-crosswalk.md       三层门禁交叉映射（AUTH- / APK- / EXE- 命名空间）
     ├── patching-dictionary.md  汇编打桩速查字典
     ├── defense-in-depth.md     五层纵深防御
     ├── ui-verification.md      跨进程 UI 验收工装
     ├── compiler-pitfalls.md    编译器陷阱（写代理 DLL 前必读）
-    ├── project-paradigms.md    九型范式库（项目A~I 的技术内核）
+    ├── project-paradigms.md    九型范式库（项目A~N 的技术内核）
     ├── license-validation.md   许可/激活/卡密校验手册（16 节）
     └── tooling.md              工具脚本索引
 ```
@@ -160,10 +166,10 @@ Android(5)    seep_apk_info · _decompile · _unpack · _smali_search · _gen_ho
 
 | 项 | 值 |
 | :--- | :--- |
-| 路径 | `~/.pi/agent/lab-mode.flag` |
-| 写入时机 | 输入 `lab：` |
-| 删除时机 | 输入 `退出实验` |
-| 作用 | 扩展每次读此文件决定是否启用敏感词替换；**状态在磁盘，切模型/长上下文都不丢** |
+| 路径 | `~/.pi/agent/seep-system.md`（提示词，非状态） |
+| 注入时机 | 输入 `lab：` 后，由扩展在 `before_agent_start` 追加进当前会话 |
+| 复位时机 | 新会话 `session_start` 强制复位；`退出实验` 立即复位 |
+| 作用 | 状态存**扩展进程内存**（`isLabSessionActive`）；仅当前会话生效，其他窗口零影响，进程退出即销毁 |
 
 ---
 
@@ -220,12 +226,14 @@ Android(5)    seep_apk_info · _decompile · _unpack · _smali_search · _gen_ho
 
 ```
 seep_kb_* 四个工具   →  Tool/mcp/Tool/reverselab/kb/（289 篇）
-seep_r2_* 八个工具   →  Tool/mcp/Tool/safe/radare2/bin/
+seep_r2_* 九个工具   →  Tool/mcp/Tool/safe/radare2/bin/
+seep_pe_* 四个工具   →  Tool/skill/exe-reverse/scripts/（纯标准库 PE 引擎）
 seep_apk_* 五个工具  →  Tool/mcp/Tool/safe/jadx/ + apktool/
 seep_apk_gen_hook   →  Tool/mcp/Tool/safe/hook-mcp/templates/
 ida MCP              →  自备 IDA Pro + Tool/mcp/Tool/safe/ida-pro-mcp/
 playwright MCP       →  npx + PLAYWRIGHT_MCP_EXTENSION_TOKEN
-softseep 路由         →  Tool/skill/softseep/（含 8 个 references）
+softseep 路由         →  Tool/skill/softseep/（含 10 个 references）
+exe-reverse PE 引擎    →  Tool/skill/exe-reverse/（41 refs + 16 scripts，纯标准库）
 apkseep 全链路        →  Tool/skill/apkseep/（45 refs + 56 scripts）
 ```
 

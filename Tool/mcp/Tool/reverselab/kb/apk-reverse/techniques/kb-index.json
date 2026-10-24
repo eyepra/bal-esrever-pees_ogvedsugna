@@ -78,6 +78,15 @@
         "08-patch-repack/01-so-injection-repack.md"
       ],
       "priority": 8
+    },
+    {
+      "id": "lsposed-root",
+      "signals": ["lsposed", "xposed", "vector", "libxposed", "xposedmodule", "xposed_init", "java_init.list", "findAndHookMethod", "IXposedHookLoadPackage", "XposedHelpers", "algorithmaide", "算法助手", "simplehook", "lspilot", "kernelsu", "ksu", "preinit", "overlayfs", "whiteout", "initrc", "zygisk", "zygisknext", "shamiko", "apatch"],
+      "files": [
+        "09-lsposed-root/01-modern-lsposed-module-analysis.md",
+        "09-lsposed-root/02-kernelsu-root-mechanisms.md"
+      ],
+      "priority": 10
     }
   ]
 }

@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "skill": "exe-reverse",
+  "artifact": "tested tool and library versions",
+  "purpose": "For every tool and library the skill's scripts or references depend on, record what is known on this development host as against what is generally claimed. A version is written only where one was observed; where nothing could be observed the field is null and the reason is stated. An absent tool is a finding about the host, not a statement about any target.",
+  "measured_at": "2026-10-16 19:16 to 19:17 local time",
+  "measurement_host": {
+    "platform": "Windows-11-10.0.26100-SP0",
+    "os_build": "26100.4652",
+    "os_product_name_field": "Windows 10 Home China",
+    "os_product_name_note": "The registry ProductName still reads Windows 10 on a Windows 11 host; the build number is the reliable field. Observed in the probe's own OS row.",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700H, family 6 model 154 stepping 3",
+    "hypervisor_present": true,
+    "elevation": "elevated"
+  },
+  "rules": {
+    "observed_only": "A version appears here only if a command produced it during the measurement window. Nothing is carried over from documentation, from a package index, or from an earlier pass.",
+    "presence_is_not_version": "A tool found on PATH is recorded as present with a version only when its own version command or its file version info answered. Where neither answered, the version field is null and the note says which channel was tried.",
+    "needed_versus_beneficial": "needed means a shipped script or a named route cannot run without it. beneficial means the skill works without it and gains from it. A missing needed tool is a route that cannot run here; a missing beneficial tool is a narrower route."
+  },
+  "python": {
+    "interpreter_used": "C:\\Python314\\python.exe",
+    "version_observed_here": "3.14.0",
+    "how_observed": "python --version produced 'Python 3.14.0'; the host probe independently reported \"python\": \"3.14.0\"",
+    "needed_by_skill": "needed",
+    "used_by": "every script in skills/exe-reverse/scripts/",
+    "note": "Other interpreters resolve on PATH on this host (3.11 and 3.13 under a user profile, a Microsoft Store shim, and one shipped with an office suite). The scripts are invoked as `python`, so which interpreter runs depends on PATH order. The stated floor is 3.9 or later; only 3.14.0 was exercised here."
+  },
+  "python_packages": [
+    {"name": "pefile", "version_observed_here": "2024.8.26", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('pefile'))\"", "needed_by_skill": "beneficial", "used_by": "third-party alternative to the shipped reader", "note": "Importable. The shipped reader exists so that the skill does not depend on this; it is useful only as a second opinion when two readers disagree about one field."},
+    {"name": "capstone", "version_observed_here": "5.0.9", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('capstone'))\"", "needed_by_skill": "beneficial", "used_by": "static-analysis and disassembly routes", "note": "Importable. No disassembly was performed in the measurement pass, so this is an inventory fact, not a capability observation."},
+    {"name": "lief", "version_observed_here": "1.0.0", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('lief'))\"", "needed_by_skill": "beneficial", "used_by": "binary rewriting routes", "note": "Importable. The shipped patcher does not use it."},
+    {"name": "unicorn", "version_observed_here": "2.1.4", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('unicorn'))\"", "needed_by_skill": "beneficial", "used_by": "emulation and symbolic-execution routes", "note": "Importable. This is an emulation engine, not a symbolic engine; a symbolic route needs more than this and nothing symbolic was run."},
+    {"name": "frida", "version_observed_here": "16.7.19", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('frida'))\" and frida.exe --version", "needed_by_skill": "beneficial", "used_by": "runtime-instrumentation and injection routes", "note": "Importable, and the command-line runtime and process-lister are both on PATH at 16.7.19. No instrumentation run against any target is recorded in this repository."},
+    {"name": "tiktoken", "version_observed_here": "0.14.0", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('tiktoken'))\"", "needed_by_skill": "beneficial", "used_by": "the repository's token-budget gate, which is a maintenance script and is not shipped inside the skill", "note": "Importable. Not required by any shipped script."},
+    {"name": "pyelftools", "version_observed_here": "0.33", "how_observed": "python -c \"import importlib.metadata as md; print(md.version('pyelftools'))\" and python -c \"import elftools\"", "needed_by_skill": "beneficial", "used_by": "nothing in this skill; recorded because a scripting tool of the same name as a binutils tool resolves on PATH", "note": "Importable. Irrelevant to Windows PE work, listed only to explain why the name readelf resolves to two different programs on this host."},
+    {"name": "keystone", "version_observed_here": null, "how_observed": "python -c \"importlib.metadata.version('keystone')\" raised PackageNotFoundError", "needed_by_skill": "beneficial", "used_by": "assembling routes", "note": "Not installed. Nothing in the measurement pass needed to assemble instructions."},
+    {"name": "yara", "version_observed_here": null, "how_observed": "python -c \"importlib.metadata.version('yara')\" raised PackageNotFoundError", "needed_by_skill": "beneficial", "used_by": "pattern-rule routes", "note": "Not installed. The shipped pattern scanner implements its own matching and does not use this."}
+  ],
+  "path_tools": [
+    {"name": "python", "version_observed_here": "3.14.0", "how_observed": "python --version", "needed_by_skill": "needed", "used_by": "all shipped scripts", "note": "Resolved to C:\\Python314\\python.exe."},
+    {"name": "git", "version_observed_here": "2.46.2.windows.1", "how_observed": "git --version", "needed_by_skill": "beneficial", "used_by": "repository maintenance", "note": "The tree is not a git checkout here, so the repository gate's tracked-file leak check skips. Anything that needs a tracked-file list needs a checkout."},
+    {"name": "gcc", "version_observed_here": "6.3.0", "how_observed": "gcc --version produced 'gcc.exe (MinGW.org GCC-6.3.0-1) 6.3.0'", "needed_by_skill": "beneficial", "used_by": "the route that compiles a runnable test binary, which the synthetic fixture deliberately is not", "note": "Present. The shipped fixture generator does not use a compiler, so this was not exercised."},
+    {"name": "objdump", "version_observed_here": "2.28", "how_observed": "objdump --version produced 'GNU objdump (GNU Binutils) 2.28'", "needed_by_skill": "beneficial", "used_by": "disassembly routes", "note": "Present. Not exercised in the measurement pass."},
+    {"name": "strings", "version_observed_here": "2.28", "how_observed": "strings --version produced 'GNU strings (GNU Binutils) 2.28'", "needed_by_skill": "beneficial", "used_by": "surface extraction", "note": "Present."},
+    {"name": "readelf", "version_observed_here": "2.28", "how_observed": "readelf --version produced 'GNU readelf (GNU Binutils) 2.28'", "needed_by_skill": "beneficial", "used_by": "nothing in this skill; it is an ELF tool and this skill is a PE skill", "note": "Two programs answer to this name on this host: the binutils binary measured here, and a Python script installed by the pyelftools package. The host probe resolved the name to one of them depending on PATH order across its revisions, which is worth knowing before a capability row is read as a statement about the binutils program."},
+    {"name": "gdb", "version_observed_here": "17.2", "how_observed": "gdb --version produced 'GNU gdb (GDB for MinGW-W64 x86_64, built by Brecht Sanders, r4) 17.2'; the file's own version resource is empty", "needed_by_skill": "beneficial", "used_by": "the debugging route, as a fallback where no native Windows debugger is installed", "note": "Present on PATH from a package-manager installation directory. No debugging session was performed, so this is an inventory fact only."},
+    {"name": "go", "version_observed_here": "1.22.5", "how_observed": "go version produced 'go version go1.22.5 windows/amd64'", "needed_by_skill": "beneficial", "used_by": "the compiler-fingerprint route, as a source of statically linked images to recognise", "note": "Present. Nothing was built with it in this pass."},
+    {"name": "dotnet", "version_observed_here": "8.0.21 (file version); the runtime's own command reports 7.0.101", "how_observed": "file version info on dotnet.exe, then dotnet --version", "needed_by_skill": "beneficial", "used_by": "the managed-assembly route", "note": "The two readings disagree, and the disagreement is the point: the installed host is 8.0.21 while the selected SDK reports 7.0.101, which is what a version pin has to record. A shared runtime 8.0.21 was on disk and one of its assemblies was parsed for the managed-classification row."},
+    {"name": "frida", "version_observed_here": "16.7.19", "how_observed": "frida --version", "needed_by_skill": "beneficial", "used_by": "runtime-instrumentation routes", "note": "Present. See the python package row."},
+    {"name": "frida-ps", "version_observed_here": "16.7.19", "how_observed": "frida-ps --version", "needed_by_skill": "beneficial", "used_by": "process listing for the instrumentation routes", "note": "Present."},
+    {"name": "wpr", "version_observed_here": "10.0.26100.4652", "how_observed": "file version info on the program in the system directory", "needed_by_skill": "beneficial", "used_by": "the ETW capture route", "note": "Present in the OS installation. Its own help was not invoked, because that route needs an elevated session to be worth anything and no trace was captured."},
+    {"name": "logman", "version_observed_here": "10.0.26100.8875", "how_observed": "file version info on the program in the system directory", "needed_by_skill": "beneficial", "used_by": "the ETW session-control route", "note": "Present in the OS installation. Not exercised."}
+  ],
+  "absent_tools": [
+    {"name": "x64dbg", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the interactive debugging route", "note": "Not found by the host probe. Until one is installed, the debugging route is needs-tool on this host, whatever the probe's route row says about the machine's posture."},
+    {"name": "windbg", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the kernel and record-and-replay debugging routes", "note": "Not found. The record-and-replay route is gated on this program."},
+    {"name": "cdb", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "scripted debugging", "note": "Not found."},
+    {"name": "dumpbin", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "a second reader for PE headers", "note": "Not found. The shipped reader covers this."},
+    {"name": "link", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "header edits", "note": "Not found."},
+    {"name": "signtool", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the signature inspection and re-signing route", "note": "Not found. A route that has to re-sign an artifact cannot run here."},
+    {"name": "ildasm", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the managed-assembly route", "note": "Not found. Classification is possible without it; recovery is not."},
+    {"name": "ilasm", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the managed-assembly route", "note": "Not found."},
+    {"name": "diec", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "protector and packer identification", "note": "Not found. Protector recognition here rests on structural evidence plus the reader's measurements, not on a signature database."},
+    {"name": "tshark", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the network-activated-licensing route", "note": "Not found, and no capture was taken."},
+    {"name": "procdump", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the dump-and-repair route", "note": "Not found. Nothing was dumped."},
+    {"name": "xperf", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "trace analysis", "note": "Not found. Capture-side programs are present; the analysis side is not."},
+    {"name": "tracelog", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "session control", "note": "Not found. A session-control program is present under a different name, so this gap is narrower than it looks."},
+    {"name": "cargo", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "the compiler-fingerprint route, as a source of statically linked images to recognise", "note": "Not found. The Go toolchain is present and covers a similar role."},
+    {"name": "cl", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "building a runnable test binary with the Microsoft toolchain", "note": "Not found. A different C toolchain is present."},
+    {"name": "msbuild", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "beneficial", "used_by": "building managed test artifacts", "note": "Not found."}
+  ],
+  "not_probed": [
+    {"name": "instruction-trace decoder library", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the hardware-tracing route", "note": "The shipped probe does not check for it, so its presence on this host is unknown. Recording it as absent would be an assumption; the probe's own rule is that a capability you never probed for is not a capability you lack."},
+    {"name": "hypervisor or guest-side observation tooling", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the hypervisor-observation route", "note": "Not probed. The host reports a hypervisor as present, which says nothing about whether any tooling for observing from it is installed."},
+    {"name": "installer-container extractor", "version_observed_here": null, "how_observed": "-", "needed_by_skill": "needed", "used_by": "the installers-and-packaging route", "note": "Not probed, and no installer was handled, so both the tool and the route are untested here."}
+  ],
+  "summary": {
+    "counted_scope": "the four arrays only: python_packages (9), path_tools (13), absent_tools (16) and not_probed (3). The python interpreter block above is recorded separately and is not included in these totals.",
+    "entries_total": 41,
+    "entries_with_observed_version": 20,
+    "entries_with_null_version": 21,
+    "null_because_not_found_on_host": 18,
+    "null_because_not_probed": 3,
+    "note": "A null here means the tool was not found, or was not probed for. It never means the tool was found to be broken, and it never means a target lacks something. The three not-probed entries are the honest gaps: the shipped probe does not check for them, so asserting either presence or absence would be an assumption."
+  }
+}

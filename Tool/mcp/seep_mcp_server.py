@@ -199,6 +199,11 @@ def seep_status() -> str:
             "hook_templates": {
                 "status": "Ready" if os.path.isdir(HOOK_TEMPLATES_DIR) else "Missing",
                 "path": HOOK_TEMPLATES_DIR
+            },
+            "pe_engine_exe_reverse": {
+                "status": "Ready" if EXE_REV_SCRIPTS else "Missing",
+                "path": EXE_REV_SCRIPTS or "not found",
+                "tools": ["seep_pe_triage", "seep_pe_aob_scan", "seep_pe_diff", "seep_pe_patch"]
             }
         }
     }
@@ -495,7 +500,194 @@ def seep_r2_asm(code_or_hex: str, arch: str = "x86", bits: int = 64, disasm: boo
     return out.strip()
 
 # ---------------------------------------------------------------------------
-# 3. Android APK 逆向与动态 Hook 生成
+# 3. Windows PE 深水区引擎（包装 exe-reverse 的零依赖脚本）
+# ---------------------------------------------------------------------------
+# 设计原则：
+#   1. 不重写引擎，只做「统一收口」—— 参数解析、路径校验、输出截断、错误归一化；
+#   2. 与 seep_r2_* / seep_apk_* 保持一致的返回风格（纯文本 / JSON 字符串）；
+#   3. 只读工具绝不写盘；唯一的写盘工具 seep_pe_patch 强制要求显式 out 路径，
+#      且拒绝覆盖输入文件（exe-reverse 的 O3「不声称未验证产物」在工具层兜底）。
+
+def _resolve_exe_reverse_scripts() -> Optional[str]:
+    """定位 exe-reverse 的 scripts 目录（兼容工作台内嵌、上游镜像与已安装技能三种布局）。"""
+    candidates = [
+        os.path.join(BASE_DIR, "..", "skill", "exe-reverse", "scripts"),
+        os.path.join(BASE_DIR, "..", "upstream", "exe-reverse", "skills", "exe-reverse", "scripts"),
+        os.path.join(BASE_DIR, "..", "..", "Tool", "skill", "exe-reverse", "scripts"),
+        os.path.join(os.path.expanduser("~"), ".pi", "agent", "skills", "exe-reverse", "scripts"),
+    ]
+    for c in candidates:
+        p = os.path.normpath(c)
+        if os.path.isfile(os.path.join(p, "peutil.py")):
+            return p
+    return None
+
+EXE_REV_SCRIPTS = _resolve_exe_reverse_scripts()
+
+# pe_triage 默认输出已经很克制；这里只防「超大 --full-out 或异常样本」把上下文撑爆
+_PE_MAX_CHARS = 12000
+
+
+def _cap_output(text: str, limit: int = _PE_MAX_CHARS) -> str:
+    """有界输出：截断时明确告知截断了多少字符，避免「看起来读完了」。"""
+    if len(text) <= limit:
+        return text
+    head = text[:limit]
+    return (f"{head}\n... [OUTPUT TRUNCATED: kept {limit} of {len(text)} chars. "
+            f"Use the --full-out option of the underlying script, or a narrower "
+            f"--limit/--section filter, to get the rest.]")
+
+
+def _run_pe_script(script: str, args: List[str], timeout: int = 180) -> str:
+    """用当前解释器执行 exe-reverse 脚本（不依赖 PATH 上的 python）。"""
+    if not EXE_REV_SCRIPTS:
+        return ("[ERROR]: exe-reverse scripts not found. Expected one of:\n"
+                "  <root>/Tool/skill/exe-reverse/scripts\n"
+                "  ~/.pi/agent/skills/exe-reverse/scripts\n"
+                "Run: powershell -File setup/install-pi.ps1")
+    path = os.path.join(EXE_REV_SCRIPTS, script)
+    if not os.path.isfile(path):
+        return f"[ERROR]: script missing: {path}"
+    out = _run_cmd([sys.executable, path] + args, timeout=timeout)
+    return _cap_output(out)
+
+
+@server.tool()
+def seep_pe_triage(pe_path: str, json_mode: bool = False, no_strings: bool = False) -> str:
+    """对未知 Windows PE (.exe/.dll/.sys) 做一次过体检：身份/架构/子系统、构建证据（时间戳、链接器、Rich 头、PDB、CLR、证书）、
+    节区表与逐节熵、校验和比对、导入导出/TLS/资源目录，并输出带阈值与数值的「保护信号」清单。
+
+    这是 Windows 目标的第一步（对应 EXE-G3 代码定位的输入），比通用 r2 更懂 PE 语义：能识别「节区熵异常 / 导入表空 / 校验和不匹配」这类加壳与自校验线索。
+
+    Args:
+        pe_path: 目标 PE 文件路径
+        json_mode: 输出结构化 JSON（便于程序化消费），默认人类可读文本
+        no_strings: 跳过字符串采样，速度更快（大文件或只要结构时使用）
+    """
+    if not os.path.isfile(pe_path):
+        return f"[ERROR]: Target file does not exist: {pe_path}"
+    args = [os.path.abspath(pe_path)]
+    if json_mode:
+        args.append("--json")
+    if no_strings:
+        args.append("--no-strings")
+    return _run_pe_script("pe_triage.py", args)
+
+
+@server.tool()
+def seep_pe_aob_scan(pe_path: str, pattern: str, section: Optional[str] = None,
+                     context: int = 0, limit: int = 50, across: Optional[str] = None) -> str:
+    """在 PE 中定位字节特征码（AOB），并给出**能不能当定位器用**的裁决：
+    unique / ambiguous / pervasive / no-match，附每个命中点的文件偏移、RVA 与所在节区。
+
+    为什么需要它：特征码「打上了」不等于「打对了」。命中 2 处的模式是抛硬币，不是定位器——本工具把这个判断变成可读的结论。
+
+    Args:
+        pe_path: 目标 PE 文件路径
+        pattern: 特征码，如 "48 8B 05 11 22 33 00 48 85 C0 74 05"，通配符用 ??
+        section: 只在该节区内报告命中（如 ".text"）
+        context: 每个命中点额外打印的上下文字节数
+        limit: 每个特征码最多报告多少个命中
+        across: 第二个版本的文件路径，用于对比命中数（判断补丁能否跨版本存活）
+    """
+    if not os.path.isfile(pe_path):
+        return f"[ERROR]: Target file does not exist: {pe_path}"
+    if not pattern or not pattern.strip():
+        return "[ERROR]: pattern is empty"
+    args = [os.path.abspath(pe_path), "--patterns", pattern.strip()]
+    if section:
+        args += ["--section", section]
+    if context:
+        args += ["--context", str(context)]
+    if limit:
+        args += ["--limit", str(limit)]
+    if across:
+        if not os.path.isfile(across):
+            return f"[ERROR]: across build does not exist: {across}"
+        args += ["--across", os.path.abspath(across)]
+    return _run_pe_script("aob_scan.py", args)
+
+
+@server.tool()
+def seep_pe_diff(old_build: str, new_build: str, summary_only: bool = False) -> str:
+    """对比同一程序的两个构建版本：归一化易变头字段（TimeDateStamp / CheckSum）后按内容哈希差分，
+    报告差异区间并映射回 RVA，用于跨版本补丁迁移与「同一份代码为什么行为不同」的判定。
+
+    Args:
+        old_build: 基线版本（旧）
+        new_build: 候选版本（新）
+        summary_only: 只输出每节区一行的小计，不展开字节区间
+    """
+    for p in (old_build, new_build):
+        if not os.path.isfile(p):
+            return f"[ERROR]: file does not exist: {p}"
+    args = [os.path.abspath(old_build), os.path.abspath(new_build)]
+    if summary_only:
+        args.append("--summary")
+    return _run_pe_script("pe_diff.py", args)
+
+
+@server.tool()
+def seep_pe_patch(pe_path: str, out_path: str, at_rva: Optional[str] = None,
+                  at_offset: Optional[str] = None, new_bytes: str = "",
+                  expect: Optional[str] = None, pattern: Optional[str] = None,
+                  pattern_offset: int = 0, at_hit: Optional[int] = None,
+                  dry_run: bool = False) -> str:
+    """对 PE 做**可验证的等长字节补丁**：只读输入、输出到新文件、校验和自动重算、
+    并在写盘后逐字节回读证明补丁真的落在文件里。
+
+    纪律（来自 exe-reverse，工具层强制执行）：
+      · 输入文件永不被修改；out_path 必须显式给出且不得等于输入；
+      · 默认拒绝改变长度（长度变化会移动后续所有偏移，属结构性编辑）；
+      · expect 提供「你相信原址是什么字节」，不匹配立即中止——这是防打错地址的最后一道闸。
+
+    Args:
+        pe_path: 输入 PE（只读打开）
+        out_path: 输出文件路径（必须是新文件，不能等于输入）
+        at_rva: 按 RVA 定位，如 "0x1010"
+        at_offset: 按文件偏移定位，如 "0x410"（与 at_rva 二选一）
+        new_bytes: 替换字节，如 "90 90 90" 或 "EB 0A"
+        expect: 你预期的原始字节，如 "48 8B 05"；不匹配则中止，其长度同时作为等长基准
+        pattern: 用特征码定位补丁点（与 at_rva/at_offset 二选一）
+        pattern_offset: 在特征码命中点基础上的偏移（如 5 跳到分支指令）
+        at_hit: 特征码命中多处时指定打第几处（从 1 开始）；不指定则多处命中会拒绝执行
+        dry_run: 只报告将要改什么，不写任何文件
+    """
+    if not os.path.isfile(pe_path):
+        return f"[ERROR]: Target file does not exist: {pe_path}"
+    if not new_bytes or not new_bytes.strip():
+        return "[ERROR]: new_bytes is required, e.g. '90 90 90'"
+    if not dry_run:
+        if not out_path or not out_path.strip():
+            return "[ERROR]: out_path is required (the input is never modified in place)"
+        if os.path.abspath(out_path) == os.path.abspath(pe_path):
+            return "[ERROR]: out_path must differ from pe_path; patching in place is refused by design"
+
+    locators = [x for x in (at_rva, at_offset, pattern) if x]
+    if len(locators) != 1:
+        return "[ERROR]: give exactly one of at_rva / at_offset / pattern"
+
+    args = [os.path.abspath(pe_path), "--bytes", new_bytes.strip()]
+    if at_rva:
+        args += ["--at-rva", at_rva]
+    elif at_offset:
+        args += ["--at-offset", at_offset]
+    else:
+        args += ["--pattern", pattern.strip()]
+        if pattern_offset:
+            args += ["--pattern-offset", str(pattern_offset)]
+        if at_hit is not None:
+            args += ["--at-hit", str(at_hit)]
+    if expect:
+        args += ["--expect", expect.strip()]
+    if dry_run:
+        args.append("--dry-run")
+    else:
+        args += ["--out", os.path.abspath(out_path)]
+    return _run_pe_script("pepatch.py", args)
+
+# ---------------------------------------------------------------------------
+# 4. Android APK 逆向与动态 Hook 生成
 # ---------------------------------------------------------------------------
 @server.tool()
 def seep_r2_xrefs(
@@ -764,7 +956,7 @@ Java.perform(function () {{
         return content
 
 # ---------------------------------------------------------------------------
-# 4. ReverseLab 攻防战术知识库与 CTF Payload 库
+# 5. ReverseLab 攻防战术知识库与 CTF Payload 库
 # ---------------------------------------------------------------------------
 @server.tool()
 def seep_kb_search(query: str, category: Optional[str] = None, limit: int = 10) -> str:
@@ -904,7 +1096,7 @@ def seep_kb_payloads(category: str = "all") -> str:
 
 
 # ---------------------------------------------------------------------------
-# 5. 战术助手与安全评估增强工具 (Task Isolation, Triage, Report & IDA Bridge)
+# 6. 战术助手与安全评估增强工具 (Task Isolation, Triage, Report & IDA Bridge)
 # ---------------------------------------------------------------------------
 
 @server.tool()

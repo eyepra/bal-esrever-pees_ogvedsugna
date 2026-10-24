@@ -12,7 +12,8 @@ Seep 工作台 —— 合规转译中继 (compliance-relay)
 2. 单趟最长优先：单次正则扫描，替换产物不回扫，杜绝 A→B、B→C 级联失控。
 3. 上下文守卫：Agent 自注入的上下文（环境、AGENTS.md、技能清单）绝不被改写。
 4. 零落盘：绝不记录请求体 / 响应体 / 鉴权头，日志只输出命中条数。
-5. Lab Mode 联动：~/.pi/agent/lab-mode.flag 存在才改写，mtime 热加载。
+5. 开关：~/.pi/agent/compliance-relay.flag 存在才改写（mtime 热加载）；
+   兼容旧的 lab-mode.flag。中继与"会话是否在作战"解耦。
 
 用法
 ----
@@ -46,6 +47,10 @@ CONFIG_FILE = os.path.join(HERE, "relay-config.json")
 DEFAULT_PORT = 17890
 DEFAULT_LAB_FLAG = os.path.join(
     os.path.expanduser("~"), ".pi", "agent", "lab-mode.flag"
+)
+# v1.8.2: 中继的独立开关（优先），lab-mode.flag 仅作向后兼容
+DEFAULT_RELAY_FLAG = os.path.join(
+    os.path.expanduser("~"), ".pi", "agent", "compliance-relay.flag"
 )
 DEFAULT_PI_MODELS = os.path.join(
     os.path.expanduser("~"), ".pi", "agent", "models.json"
@@ -291,27 +296,46 @@ def detect_protocol(path: str) -> str | None:
 # 3. Lab Mode 状态门（mtime 热加载）
 # =============================================================================
 class LabModeGate:
-    """检查 lab-mode.flag 是否启用改写；按 mtime 热加载，无需重启进程。"""
+    """改写开关（mtime 热加载，无需重启进程）。
 
-    def __init__(self, flag_path: str, force: bool | None = None):
-        self.flag_path = flag_path
+    设计变更（v1.8.2）：中继**不再**由 lab-mode.flag 驱动。
+    原因：lab 开关已改为**会话级内存状态**（只有输入 `lab：` 的那个窗口生效），
+    磁盘上不再有人写 lab-mode.flag，若继续以它为门，中继会永远处于关闭状态。
+    中继是**传输层**的独立选择，与"某个窗口是否在作战"是两件事。
+
+    启用条件（任一满足）：
+      1. 显式 `--force-on` / `--force-off`
+      2. 独立开关文件 `~/.pi/agent/compliance-relay.flag` 存在
+      3. 兼容旧行为：`~/.pi/agent/lab-mode.flag` 存在（手工创建的旧用户）
+    """
+
+    def __init__(self, flag_paths, force: bool | None = None):
+        if isinstance(flag_paths, str):
+            flag_paths = [flag_paths]
+        self.flag_paths = list(flag_paths)
         self.force = force
-        self._stamp: tuple[int, int] | None = None
+        self._stamp: tuple | None = None
         self._active = False
         self._lock = threading.Lock()
+
+    def _snapshot(self):
+        snap = []
+        for fp in self.flag_paths:
+            try:
+                st = os.stat(fp)
+                snap.append((fp, st.st_mtime_ns, st.st_size))
+            except OSError:
+                snap.append((fp, None, None))
+        return tuple(snap)
 
     def is_active(self) -> bool:
         if self.force is not None:
             return self.force
         with self._lock:
-            try:
-                st = os.stat(self.flag_path)
-                stamp = (st.st_mtime_ns, st.st_size)
-            except OSError:
-                stamp = None
-            if stamp != self._stamp:
-                self._stamp = stamp
-                self._active = stamp is not None
+            snap = self._snapshot()
+            if snap != self._stamp:
+                self._stamp = snap
+                self._active = any(mtime is not None for _fp, mtime, _sz in snap)
             return self._active
 
 
@@ -857,7 +881,7 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=None, help="监听端口")
     parser.add_argument("--host", default="127.0.0.1", help="监听地址")
     parser.add_argument(
-        "--force-on", action="store_true", help="强制启用改写（忽略 lab-mode.flag）"
+        "--force-on", action="store_true", help="强制启用改写（忽略开关文件）"
     )
     parser.add_argument(
         "--force-off", action="store_true", help="强制关闭改写（纯透传）"
@@ -910,7 +934,7 @@ def main() -> int:
 
     guards = load_guards()
     config = load_or_init_config(args.port)
-    gate = LabModeGate(args.lab_flag, force=force)
+    gate = LabModeGate([DEFAULT_RELAY_FLAG, args.lab_flag], force=force)
 
     state = RelayState(config, matcher, guards, gate)
     state.verbose = args.verbose
@@ -922,13 +946,15 @@ def main() -> int:
         print(f"[FAIL] 无法监听 {args.host}:{port} -> {exc}", file=sys.stderr)
         return 1
 
-    mode = "FORCED-ON" if force is True else ("FORCED-OFF" if force is False else "LAB-GATED")
+    mode = "FORCED-ON" if force is True else ("FORCED-OFF" if force is False else "FLAG-GATED")
     print("=" * 78)
     print("  Seep Compliance Relay (合规转译中继)")
     print("=" * 78)
     print(f"  监听地址 : http://{args.host}:{port}")
     print(f"  规则条数 : {len(matcher.mapping)}")
-    print(f"  改写模式 : {mode}  (lab flag: {args.lab_flag})")
+    print(f"  改写模式 : {mode}")
+    print(f"  开关文件 : {DEFAULT_RELAY_FLAG}")
+    print(f"             (兼容) {args.lab_flag}")
     print(f"  上游映射 : {len(state.upstreams)} 个")
     print(f"  访问令牌 : {config['token'][:8]}...（完整值见 relay-config.json，请勿外传）")
     print("-" * 78)

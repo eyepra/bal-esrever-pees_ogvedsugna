@@ -1,0 +1,61 @@
+# Local build products. The kit ships source only: every PE the tests need is generated into a
+# pytest temp directory by skills/exe-reverse/scripts/make_fixture_pe.py, so nothing here is an input
+# the repository could not rebuild.
+*.obj
+*.lib
+*.exp
+*.ilk
+*.idb
+*.i64
+*.til
+*.nam
+*.map
+
+# Working data -- never commit samples, dumps or captures.
+*.exe
+*.dll
+*.sys
+*.ocx
+*.cpl
+*.scr
+*.pdb
+*.zip
+*.7z
+*.bin
+*.dmp
+*.etl
+*.pcap
+*.png
+*.jpg
+
+# local scratch
+_tmp/
+out/
+work/
+audit_out/
+
+# local extension-pass workspace: toolchains, vendor SDKs, unpacked installers, scratch notes.
+# Nothing under tools/ belongs to the repository -- the skill's own evidence record lives in
+# docs/tool-verification/ and carries no target identity or vendored binaries.
+tools/
+
+# Local copies of the third-party write-ups an absorption pass reads. They are someone else's text,
+# not content of this repository: what ships is the absorbed method under an `inferred` label, plus
+# the anonymized source line in docs/tool-verification/EXTENSION-absorption-*.md. One `git add -A`
+# is all it would take to commit them, so the rule is explicit here rather than resting on "nobody
+# has added them yet".
+.ref/
+
+# sandbox installs made while testing `npx skills add .` against this repo
+.claude/
+.agents/
+*.log
+*.jsonl
+
+# python / editors
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.idea/
+.DS_Store

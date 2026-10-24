@@ -1,0 +1,437 @@
+{
+  "schema_version": 1,
+  "skill": "exe-reverse",
+  "artifact": "capability evidence matrix",
+  "purpose": "One row per capability this skill claims. Each row carries the strongest defensible grade, why that grade and not a higher one, the evidence behind it, the dependency this repository does not ship, and what would raise the row. A reader who has the installed skill but not this repository can check every row against the command it names.",
+  "grade_legend": {
+    "observed": "a command was run and its output exists, or a file in this repository was read at a stated revision. For a shipped tool this is a statement about the tool, not about any target the tool was pointed at.",
+    "inferred": "follows from an observation or from documented mechanism, with the reasoning step stated. The step itself was not executed.",
+    "unverified": "assumed, or reported elsewhere and not reproduced here. Usable as a plan input, never as a premise for a stronger claim."
+  },
+  "rules_applied": {
+    "chain_rule": "A claim is only as strong as the weakest link in its chain. A passing self-check of a shipped script never upgrades a step nobody executed.",
+    "unknown_rule": "Missing coverage is reported as unknown, never as absence. A search that returned nothing is evidence about the search.",
+    "tool_versus_target": "The behaviour of a shipped script is observed when it is run; the behaviour of a target is observed only when a target was run and a result recorded. No target sample is present in this tree, so no row here grades a target."
+  },
+  "measurement_host": {
+    "platform": "Windows-11-10.0.26100-SP0",
+    "os_build": "26100.4652",
+    "os_product_name_field": "Windows 10 Home China",
+    "os_product_name_note": "The registry ProductName still reads Windows 10 on this Windows 11 host. The build number is the reliable field. Observed in the probe's own OS row.",
+    "cpu_brand": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "cpu_identity": "family 6 model 154 stepping 3",
+    "hypervisor_present_cpuid_01h_ecx_bit31": true,
+    "intel_pt_reported_cpuid_07h_0_ebx_bit25": true,
+    "privilege": "elevated (TokenElevation true)",
+    "python": "3.14.0 on C:\\Python314\\python.exe"
+  },
+  "measurement_window": {
+    "local_time_start": "2026-10-16 19:16",
+    "local_time_end": "2026-10-16 19:17",
+    "note": "The repository was being written by other authors during this pass. Files appeared and were rewritten between the first read and the final write. Every citation in this file was produced inside one window in which a hash of every shipped script was taken before and after the run and did not change; the script_pins block below records that hash set. Structural facts about which files exist were re-measured at the end of the window and are recorded with their own timestamp, because they moved during the pass.",
+    "script_pins_unchanged_across_window": true
+  },
+  "path_convention": "%TEMP% stands for the session's temporary directory, which was used as the scratch area so that nothing was written into the repository. The literal path is not reproduced because it contains a real user profile name, which this repository's own identity rules treat as a leak. The generated fixtures live only in that scratch area; no test binary is committed.",
+  "script_pins": [
+    {"script": "peutil.py", "bytes": 41670, "sha256_first16": "25B027BD2192A884"},
+    {"script": "pepatch.py", "bytes": 17579, "sha256_first16": "36BA4C3C3AA2EC5B"},
+    {"script": "aob_scan.py", "bytes": 10823, "sha256_first16": "38129F36411D0CD4"},
+    {"script": "hwprobe.py", "bytes": 26883, "sha256_first16": "6ACFA92BC6A895FA"},
+    {"script": "make_fixture_pe.py", "bytes": 21949, "sha256_first16": "0DB1842DBE192080"},
+    {"script": "scan_leaks.py", "bytes": 16588, "sha256_first16": "49DD5CFD51F36302"},
+    {"script": "pe_triage.py", "bytes": 38862, "sha256_first16": "30409245D09BE18F"}
+  ],
+  "script_pins_note": "sha256_first16 is the first 16 hex characters of the SHA-256 of the file at the pinned size. It is a pin, not a full digest; a reader re-running these commands should confirm the byte size before expecting the same output. hwprobe.py was rewritten again after the window (27098 bytes), so its pin covers exactly the run quoted here and not the file as it stands later.",
+  "tree_state_at_end_of_window": {
+    "local_time_first_measurement": "2026-10-16 19:17",
+    "state_at_first_measurement": {
+      "reference_files_present": 31,
+      "scripts_present": 8,
+      "reference_files_named_but_absent": ["references/hardware-tracing.md", "references/hypervisor-observation.md"],
+      "scripts_named_but_absent": ["scripts/capabilities.py"],
+      "gate_output": "python check_repo.py reported 11 problems whose unique targets were those three files, plus the note that the tracked-file leak gate skipped because this tree is not a git checkout."
+    },
+    "local_time_remeasurement": "2026-10-16 19:22",
+    "state_at_remeasurement": {
+      "reference_files_present": 33,
+      "scripts_present": 9,
+      "reference_files_named_but_absent": [],
+      "scripts_named_but_absent": [],
+      "gate_output": "Every reference and script path now resolves: check_repo.py reports 1 problem, and it is the leak scan alone. check_routing.py reports RESULT=ok. With PYTHONIOENCODING unset on a GBK console, check_repo.py instead crashes with UnicodeEncodeError while printing a leak finding, so the gate's own verdict is unreachable on that console until the encoding is set."
+    },
+    "why_both_are_recorded": "Files named by the entry point and the routing table were absent at 19:17 and present at 19:22. Any row that cited a missing file was re-graded against the later measurement, and the earlier state is kept because it is what a reader of the 19:17 revision would have seen.",
+    "subdirectories_present": ["references/coverage/route-inventory.md", "references/precedents/README.md"]
+  },
+  "rows": [
+    {
+      "id": "static-pe-structure-reading",
+      "capability": "Read a PE image's headers, sections, directories, imports, exports, resources, TLS callbacks, debug directory, relocations, security directory and file checksum from a file on disk, with no third-party dependency.",
+      "grade": "observed",
+      "grade_not_higher": "The reader is observed correct on the four files below. Proving it correct on an arbitrary third-party target would need such a target plus a second reader to disagree with, and no target sample is in this tree.",
+      "evidence": [
+        {"kind": "command", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py %TEMP%\\exe-reverse-evidence\\f2.exe --summary --check-sum", "observed": "size 4096 bytes; sha256 9488d93b8de2daf9ca89228621a76f58ef63876c2aba14cccde6640e551ada94; checksum declared 0x10bad computed 0x10bad -> match; sections .text .rdata .data .rsrc .reloc; .rdata vsize 1408 raw 512, so a virtual-only tail is present; .text flags cnt_code,mem_execute,mem_read,mem_write"},
+        {"kind": "command", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py C:\\Windows\\System32\\<name> --summary --check-sum for notepad.exe, kernel32.dll, ntdll.dll", "observed": "notepad.exe declared 0x5e673 computed 0x5e673 -> match; kernel32.dll 0xd9516 / 0xd9516 -> match; ntdll.dll 0x27134d / 0x27134d -> match"},
+        {"kind": "command", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py <dotnet 8.0.21 shared runtime>\\System.Runtime.dll --summary", "observed": "arch/kind i386 / dll (.NET); signed yes; checksum declared 0xe142 computed 0xe142 -> match; directories basereloc, clr, debug, iat, import, resource, security; certificate table at 0x8200, type PKCS_SIGNED_DATA"},
+        {"kind": "command", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py %TEMP%\\exe-reverse-evidence\\fixture-bare.exe --summary --check-sum", "observed": "checksum 0xb0c5 match; directories basereloc, import only, which is the bare recipe's intended shape"}
+      ],
+      "dependency_not_shipped": "a disassembler or decompiler for anything past the headers, and a second reader for the case where two tools disagree about one field",
+      "raise_grade": "Given a real target plus a second independent reader, record agreement or disagreement field by field. Until then this stays a statement about the reader.",
+      "evidence_file_pointers": ["references/pe-structure.md", "references/recon.md"]
+    },
+    {
+      "id": "byte-patching-guards",
+      "capability": "Apply an equal-length byte patch to a PE, refusing ambiguity and length changes, re-reading the written bytes and recomputing the checksum.",
+      "grade": "observed",
+      "grade_not_higher": "The guards and the write path are observed. The only question that finally matters, whether the edited byte is the byte the program consults, was not measured: that needs a running target and a debugger, and neither was used here.",
+      "evidence": [
+        {"kind": "command", "script": "pepatch.py", "command": "python skills/exe-reverse/scripts/pepatch.py %TEMP%\\exe-reverse-evidence\\f2.exe --pattern \"48 8B 05 11 22 33 00 48 85 C0 74 05\" --bytes \"EB 05\" --dry-run", "observed": "exit 1; FAIL cli: pattern matched 2 sites (0x410 (rva 0x1010), 0x424 (rva 0x1024)); the message names three ways out: pass index, pass allow-many, or extend the pattern with context"},
+        {"kind": "command", "script": "pepatch.py", "command": "python skills/exe-reverse/scripts/pepatch.py %TEMP%\\exe-reverse-evidence\\f2.exe --at-rva 0x101A --expect \"74 05\" --bytes \"90 90 90\" --out %TEMP%\\exe-reverse-evidence\\should-not-exist.exe", "observed": "exit 1; refusal text explains that a length change moves every later offset and can invalidate the section table, the relocations and the security directory at once; the output file was not created (Test-Path returned False)"},
+        {"kind": "command", "script": "pepatch.py", "command": "python skills/exe-reverse/scripts/pepatch.py %TEMP%\\exe-reverse-evidence\\f2.exe --at-rva 0x101A --expect \"74 05\" --bytes \"EB 05\" --out %TEMP%\\exe-reverse-evidence\\f2.patched.exe", "observed": "exit 0; input sha256 9488d93b8de2daf9ca89228621a76f58ef63876c2aba14cccde6640e551ada94; output sha256 79102039cfb6f4a4f766e4671d506ced6037a49af1abecaa00be621d98f6c125; site 0x41A 74 05 -> EB 05; checksum recomputed; 'verified : every patched byte re-read from the written file'"}
+      ],
+      "dependency_not_shipped": "a debugger or a trace, to establish that the patched site is the site that executes",
+      "raise_grade": "Run the patched artifact on a host, exercise the exact feature, and record the outcome against the unmodified control in the same session. Record the host build and snapshot with it.",
+      "evidence_file_pointers": ["references/patching.md", "references/verification.md", "references/integrity-checks.md"]
+    },
+    {
+      "id": "aob-pattern-location",
+      "capability": "Locate a site by byte pattern, report the hit count per pattern as a verdict, and compare hit counts across two builds.",
+      "grade": "observed",
+      "grade_not_higher": "Observed as a matching rule over the bytes it was pointed at. That a pattern's identity is stable across the builds that matter is a separate claim needing a disassembler and several real builds, which this tree does not have.",
+      "evidence": [
+        {"kind": "command", "script": "aob_scan.py", "command": "python skills/exe-reverse/scripts/aob_scan.py %TEMP%\\exe-reverse-evidence\\fixture64.exe --patterns \"48 8B 05 ?? ?? ?? ?? 48 85 C0 74\" --context 6", "observed": "2 hits at file 0x410 (rva 0x1010) and 0x424 (rva 0x1024), both in .text; verdict ambiguous; result needs-attention; exit 1; the tool prints the surrounding bytes and the advice to anchor on structure"},
+        {"kind": "command", "script": "aob_scan.py", "command": "python skills/exe-reverse/scripts/aob_scan.py %TEMP%\\exe-reverse-evidence\\fixture64.exe --patterns \"48 8B 05 11 22 33 00 48 85 C0 74 05\" --across %TEMP%\\exe-reverse-evidence\\fixture64.patched.exe", "observed": "target 2 hits -> ambiguous; across 1 hit -> unique; the tool states 'hit count changed between builds (2 vs 1). The pattern still matches something; it is not established that it matches the same thing.'"}
+      ],
+      "dependency_not_shipped": "a disassembler, to argue that a pattern's identity is stable rather than merely its count",
+      "raise_grade": "Run one signature against several real builds of one product, on more than one configuration, and record the resolved site and its surrounding structure per build.",
+      "evidence_file_pointers": ["references/aob-and-signatures.md", "references/pe-diff-and-versions.md"]
+    },
+    {
+      "id": "host-capability-probe",
+      "capability": "Report which reverse-engineering routes the current machine can support, in a three-state vocabulary, with the measurement behind each answer, and refuse to decode CPUID bits whose meanings were not verified.",
+      "grade": "observed",
+      "grade_not_higher": "Observed on this one host. The rows are per-machine by construction; nothing here transfers to another machine without re-running the probe there.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "route table with nine rows in states available / needs-a-debugger, and a hypervisor is present / needs-privilege / needs-reboot-and-testsigning / needs-windbg / no documented user-mode path on this platform. CPU rows: vendor GenuineIntel; family 6 model 154 stepping 3; brand string 12th Gen Intel(R) Core(TM) i7-12700H; CPUID.01H:ECX[31] true; CPUID.07H.0:EBX[25] true; CPUID.14H.0 printed as raw 'max sub-leaf 1, capabilities EBX=0x0000005F' with a note that the bits must be read from the processor specification; CPUID.1CH.0 raw; CPUID.0AH.0 'ver 6, counters 5'. OS rows include the ProductName-versus-build warning and four registry rows in state unavailable with the statement that an absent value is not the same as a feature being off."},
+        {"kind": "measurement", "script": "hwprobe.py", "command": "Measure-Command { python skills/exe-reverse/scripts/hwprobe.py --json > %TEMP%\\dsh-probe.json }", "observed": "the timing command reported 2066.846 ms, on an earlier revision of the script (sha256_first16 F79370D7D181C72A). Recorded as an order of magnitude, not as a bound for the current revision."},
+        {"kind": "observation", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json (privilege rows)", "observed": "TokenElevation true, and the report prints a TokenUser SID. The SID is deliberately not reproduced here or anywhere in this repository: the probe's own output is an identity surface, and this is the concrete case the environment reference warns about."}
+      ],
+      "dependency_not_shipped": "nothing to run it; a second machine is needed to make any row transferable",
+      "raise_grade": "Run the probe on a second host of a different class (no hypervisor, test signing on, a debugger installed) and record the differing rows. Two hosts make the probe's states comparable rather than anecdotal.",
+      "evidence_file_pointers": ["references/environment.md", "references/coverage-and-limits.md"]
+    },
+    {
+      "id": "fixture-generation",
+      "capability": "Build a synthetic, byte-reproducible PE image offline, with the awkward features parser and patcher tests need, and no third-party binary in the tree.",
+      "grade": "observed",
+      "grade_not_higher": "Observed that the generator runs, is deterministic and produces an image the shipped reader parses with a matching checksum. It is explicitly not a runnable program, so it supports parser and patcher tests and nothing about runtime behaviour.",
+      "evidence": [
+        {"kind": "command", "script": "make_fixture_pe.py", "command": "python skills/exe-reverse/scripts/make_fixture_pe.py --out %TEMP%\\exe-reverse-evidence\\f2.exe --json", "observed": "size 4096; sha256 9488d93b8de2daf9ca89228621a76f58ef63876c2aba14cccde6640e551ada94; PE32+; machine 0x8664; entry rva 0x1000; image base 0x140000000; checksum 0x10bad at offset 0xd8; .text characteristics 0xe0000020 (executable and writable on purpose); .rdata virtual size 1408 against raw size 512, giving a 1024-byte virtual-only tail; the plant sequence written twice at file 0x410/rva 0x1010 and 0x424/rva 0x1024; TLS callback rva 0x2100; pdb path C:\\build\\fixture.pdb"},
+        {"kind": "measurement", "script": "make_fixture_pe.py", "command": "two independent generations of the default recipe (%TEMP%\\exe-reverse-evidence\\fixture64.exe and f2.exe)", "observed": "identical size 4096 and identical sha256 9488d93b8de2daf9ca89228621a76f58ef63876c2aba14cccde6640e551ada94, which is what makes the fixtures usable as a pinned test input"},
+        {"kind": "command", "script": "make_fixture_pe.py", "command": "python skills/exe-reverse/scripts/make_fixture_pe.py --out %TEMP%\\exe-reverse-evidence\\fixture32.exe --pe32 ; --recipe bare --json ; --list-recipes", "observed": "PE32 variant: 4096 bytes, sha256 44a793f20495f0112bf9af1bf16233625b05d5ac4219855a2b69210cd05602d9, checksum 0xadc9. Bare recipe: sha256 8427f16dce3271b6dd41e0f9d1eae4702ef8e1456d79ae72ea6b42c26253f628, checksum 0xb0c5, export/resource/TLS/debug directories absent as intended. Six recipes listed: bare, default, fat-align, no-virtual-tail, pe32, thin-align."},
+        {"kind": "observation", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py %TEMP%\\exe-reverse-evidence\\f2.exe --summary --check-sum", "observed": "the reader parses the generated image back and reports declared 0x10bad computed 0x10bad -> match, so the generator's checksum and the reader's algorithm agree on a file neither has seen before"}
+      ],
+      "dependency_not_shipped": "a local C toolchain, if a runnable test binary is wanted rather than a structural fixture",
+      "raise_grade": "Add one runnable binary compiled from source in the test suite, hash it, and record a launch result; that is a different capability (runtime behaviour) from the fixture's parser coverage.",
+      "evidence_file_pointers": ["references/pe-structure.md", "references/verification.md"]
+    },
+    {
+      "id": "identity-scanning",
+      "capability": "Scan a publication surface for target identity (product names bound to versions, machine identifiers, credentials, absolute user paths) with an auditable exemption list.",
+      "grade": "observed",
+      "grade_not_higher": "Observed as a scanner that runs and classifies. Its result on this repository is findings, not clean, and three of the five hits are the scanner matching its own repository's text: see known-limitations.md.",
+      "evidence": [
+        {"kind": "command", "script": "scan_leaks.py", "command": "python skills/exe-reverse/scripts/scan_leaks.py", "observed": "at the first measurement: 38 files scanned, 5 strong, 0 weak, 2 suppressed, RESULT=findings, exit 1. At the remeasurement: 15 strong, 0 weak, 5 suppressed, RESULT=findings, exit 1, spread across SKILL.md, references/aob-and-signatures.md (two hits on one line), references/hypervisor-observation.md, references/routing.md, scripts/capabilities.py (nine hits) and scripts/peutil.py. Two shapes only: a language name bound to a version number, and a four-field version number used as an example build identity, which the address rule also catches because it parses as a dotted quad. The literal matched strings are deliberately not reproduced in this evidence file: writing them here reproduces exactly what the rules match, and that was observed as a real effect when this file was first written and the repository's finding count rose from 5 to 22 until the quoted strings were replaced with a description of their shape."},
+        {"kind": "command", "script": "scan_leaks.py", "command": "python skills/exe-reverse/scripts/scan_leaks.py --root E:\\exe-reverse --quiet --max 5", "observed": "did not complete within a 120 s bound on the repository root, because that root also holds a large untracked recon tree. Whether the wider root has findings is unknown; the run was cancelled rather than reported as clean. Use --files-from with an explicit tracked-file list for a whole-repository pass."},
+        {"kind": "observation", "script": "scan_leaks.py", "command": "documented default root, read from the script's own source", "observed": "the default root resolves to the parent of the skill directory (two levels up from scripts/), which is the shipped skill surface, not the repository root three levels up. That is why the default run scans 38 files and the repository-root run walks everything."}
+      ],
+      "dependency_not_shipped": "a tracked-file list; the repository-level gate passes one in, and this tree is not a git checkout so it skips",
+      "raise_grade": "Resolve the five current hits, either by widening the exemption list to cover a language name before a version and a four-field version quad, or by rewording. Do not silence them by disabling a rule: the rule that fires on a version quad is the same rule that catches a captured target address.",
+      "evidence_file_pointers": ["references/desensitization.md"]
+    },
+    {
+      "id": "pe-triage",
+      "capability": "Produce a first-pass classification record for an unknown PE: identity, build evidence, section table with entropy, and a list of signals each stated with the number behind it.",
+      "grade": "observed",
+      "grade_not_higher": "Observed on the synthetic fixture only. The signals are reasons to look rather than verdicts, which is what the tool says of itself, so a run on a real target would not raise the grade without a cross-check.",
+      "evidence": [
+        {"kind": "command", "script": "pe_triage.py", "command": "python skills/exe-reverse/scripts/pe_triage.py %TEMP%\\exe-reverse-evidence\\fixture64.exe", "observed": "identity amd64 / 64-bit / exe, optional header 0x20b, subsystem windows_cui; checksum declared 0x10bad computed 0x10bad -> match; build evidence block stating that a deterministic build stores a content hash in the timestamp field and that the field must not be read as a build time; 'rich header absent -- the MSVC linker writes one, so either the toolchain is not MSVC, or the header was stripped. Absence is a signal, not a verdict.'; 'managed no CLR directory'; 'certificate no certificate table'; sections table with entropy over each section's first 65536 raw bytes; then 'signals (4)' including [near-zero-entropy-executable-section] .text entropy 0.31 bits/byte over 1024 raw bytes with the note that an empty code section and a stub-packed one look identical here."},
+        {"kind": "observation", "script": "pe_triage.py", "command": "directory listing at 19:16", "observed": "this script did not exist when this pass began (the first tree read at 19:04 listed six scripts) and appeared during it, at 38862 bytes. A row citing it therefore describes the tree at the end of the measurement window, not at the start."}
+      ],
+      "dependency_not_shipped": "a disassembler, for anything past classification",
+      "raise_grade": "Run it against several heterogeneous real images and confirm each signal against the mechanism it names.",
+      "evidence_file_pointers": ["references/recon.md", "references/compiler-fingerprints.md"]
+    },
+    {
+      "id": "managed-classification",
+      "capability": "Decide from the file whether an artifact is a managed assembly, by reading the CLR data directory.",
+      "grade": "observed",
+      "grade_not_higher": "Classification only. Whether a hex patch on such an artifact does nothing is stated in the reference and was not measured here, because recovery tooling is not present and no assembly was modified.",
+      "evidence": [
+        {"kind": "command", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py <dotnet 8.0.21 shared runtime>\\System.Runtime.dll --summary", "observed": "kind reported as dll (.NET); the directory list contains clr alongside basereloc, debug, iat, import, resource and security, which is the measurable form of 'this artifact is managed'"},
+        {"kind": "command", "script": "peutil.py", "command": "python skills/exe-reverse/scripts/peutil.py %TEMP%\\exe-reverse-evidence\\fixture64.exe --summary", "observed": "the directory list for the native fixture contains no clr entry, so the negative case is representable too"}
+      ],
+      "dependency_not_shipped": "a metadata and intermediate-language toolchain, plus a runtime to test against",
+      "raise_grade": "Modify a real managed assembly with managed tooling and show the behaviour change on the target itself; that is recovery, not classification.",
+      "evidence_file_pointers": ["references/managed-dotnet.md", "references/handoff-boundaries.md"]
+    },
+    {
+      "id": "licence-mechanism-classification",
+      "capability": "Classify which layer owns a licence or feature decision: client logic, client-rendered server data, or server authority, before any byte is edited.",
+      "grade": "inferred",
+      "grade_not_higher": "The classification is a decision procedure over documented and observable structure and it is written down; no target was classified in this pass, and the discriminating experiment for the remote rows needs a capture path and a second account, neither of which is present here.",
+      "evidence": [
+        {"kind": "documentation", "script": null, "command": "read references/license-mechanisms.md at the pinned tree state", "observed": "an eight-row mechanism taxonomy mapping each mechanism to where the decision physically lives and what a client-side change can achieve; a stated rule that five of the eight can be settled from the binary alone and three cannot; and the framing against a published client-side-enforcement weakness class"},
+        {"kind": "documentation", "script": null, "command": "read references/handoff-boundaries.md section 1", "observed": "the client-versus-server table with a discriminating experiment that needs no patching (same build, two accounts, traffic captured), and the note that the repository holds no capture transcript and no account pair"}
+      ],
+      "dependency_not_shipped": "a capture path and a second account for the remote rows",
+      "raise_grade": "Classify one real target and record the evidence for the branch plus the observation that would falsify it.",
+      "evidence_file_pointers": ["references/license-mechanisms.md", "references/network-activated-licensing.md"]
+    },
+    {
+      "id": "algorithm-and-key-recovery",
+      "capability": "Recover the arithmetic that maps a serial or key to an accept value, and produce a standalone generator.",
+      "grade": "inferred",
+      "grade_not_higher": "The route is described and its verification requirement is stated; no implementation here has been checked against the target's own acceptance, which is the only oracle that settles this.",
+      "evidence": [
+        {"kind": "documentation", "script": null, "command": "read references/algorithm-recovery.md at the pinned tree state", "observed": "the file exists in the tree at the end of the window and the route's entry exists in the symptom index and the route table"}
+      ],
+      "dependency_not_shipped": "a decompiler or symbolic engine, and a target whose acceptance can be observed",
+      "raise_grade": "Produce a value and show the unmodified target accepting it, on a recorded build, with the hook removed.",
+      "evidence_file_pointers": ["references/algorithm-recovery.md", "references/verification.md"]
+    },
+    {
+      "id": "anti-analysis-handling",
+      "capability": "Decide what to do about a target that detects observers: identify the check, measure the cost, prefer static, and keep observers separate from interceptors.",
+      "grade": "inferred",
+      "grade_not_higher": "A decision procedure, stated in the reference and in the environment reference. Nothing in this pass was measured on a target that detects observers, and no such target is in the tree.",
+      "evidence": [
+        {"kind": "documentation", "script": null, "command": "read references/anti-analysis.md and the anti-VM section of references/environment.md", "observed": "the mechanism list, the observer-versus-interceptor discipline, and the rule that an unmodified control run is what separates 'the target refuses this environment' from 'the environment refused the launch'"},
+        {"kind": "observation", "script": null, "command": "recorded in references/environment.md and references/verification.md", "observed": "a byte-identical copy of a system binary launched from a non-system directory left no process surviving one 400 ms sample, with the mechanism unknown. This is an environment anomaly, not a detection measurement, and it is recorded here as the kind of unexplained observation that must not be promoted into a detection claim."}
+      ],
+      "dependency_not_shipped": "a second machine, and a target that can be afforded as a loss",
+      "raise_grade": "Instrument one real target that gates on observers, with the unmodified control in the same snapshot, and record the single variable that changed the outcome.",
+      "evidence_file_pointers": ["references/anti-analysis.md", "references/environment.md"]
+    },
+    {
+      "id": "protector-and-packer-recognition",
+      "capability": "Recognise that a file is probably packed or protected from structural evidence, while refusing to convert an entropy reading into a verdict, and hand the unpack route over.",
+      "grade": "inferred",
+      "grade_not_higher": "The evidence table and the restraint are documented, and the shipped tools do compute per-section entropy and label it a heuristic, which was observed in a triage run. No protected image was analysed in this pass, so the recognition itself is a documented procedure rather than a measured result.",
+      "evidence": [
+        {"kind": "command", "script": "pe_triage.py", "command": "python skills/exe-reverse/scripts/pe_triage.py %TEMP%\\exe-reverse-evidence\\fixture64.exe", "observed": "entropy is reported per section with a stated window ('first 65536 raw bytes, not the whole section'), and the signal it raises is worded as two readings of the same number: 'Either the raw code is absent and the real content arrives at run time, or the section is padding'. The tool does not name a protector from it."},
+        {"kind": "documentation", "script": null, "command": "read references/protectors-and-packers.md and references/handoff-boundaries.md section 6", "observed": "the structural discriminator list and the rule that naming a protector is a classification result while whether it yields is a per-target measurement"}
+      ],
+      "dependency_not_shipped": "protector-specific tooling, and a decision about whether buying it is justified",
+      "raise_grade": "Analyse one real protected image end to end and record how far the structural discriminators got and where they stopped.",
+      "evidence_file_pointers": ["references/protectors-and-packers.md", "references/coverage-and-limits.md"]
+    },
+    {
+      "id": "compiler-fingerprinting",
+      "capability": "Read toolchain fingerprints from the image, including the linker-written header region that survives stripping better than the linker version field.",
+      "grade": "inferred",
+      "grade_not_higher": "The reader carries the path and pe_triage reports the header's absence on the fixture, which exercises the negative branch only. No positive decode was observed in this pass, and the reference itself records that the pair-to-vendor decoding convention is third-party and must be calibrated against a second file before being quoted.",
+      "evidence": [
+        {"kind": "command", "script": "pe_triage.py", "command": "python skills/exe-reverse/scripts/pe_triage.py %TEMP%\\exe-reverse-evidence\\fixture64.exe", "observed": "'rich header absent -- the MSVC linker writes one, so either the toolchain is not MSVC, or the header was stripped. Absence is a signal, not a verdict.' This is the negative branch working."},
+        {"kind": "documentation", "script": null, "command": "read references/compiler-fingerprints.md and references/pe-structure.md's Rich Header section", "observed": "the region's location and XOR scheme, and the explicit statement that decoding a specific product identity from an uncalibrated pair is not permitted"}
+      ],
+      "dependency_not_shipped": "a second file with a known toolchain, to calibrate the decode",
+      "raise_grade": "Decode one header region and validate the result against a file whose toolchain is independently known; only then may a build-generation claim be made from it.",
+      "evidence_file_pointers": ["references/compiler-fingerprints.md", "references/pe-structure.md"]
+    },
+    {
+      "id": "dynamic-debugging-workflow",
+      "capability": "Turn a runtime observation into a named routine with a record someone else can replay: breakpoint families and their costs, where to place a breakpoint, and how to walk back from a hit to a call site.",
+      "grade": "unverified",
+      "grade_not_higher": "The route is described in full and the reference exists, but no debugger session is recorded in this tree, and no interactive debugger was found on this host. The host probe's route table nevertheless prints the user-mode debugging row as available, which is a real tension: that row answers 'is the machine's posture blocking this technique', while the tool inventory answers 'is a debugger present here'. A route whose tool is missing is needs-tool, not available.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "tools: the interactive GUI debugger, the kernel and command-line debuggers were all reported unavailable; a MinGW debugger was found on PATH. Routes: 'user-mode debugging (x64dbg/WinDbg)' printed as available with the note that it is an interactive GUI or a debugger install, not driven by these scripts."},
+        {"kind": "documentation", "script": null, "command": "read references/dynamic-debugging.md", "observed": "the breakpoint family table with per-family costs, the breakpoint placement order, the stack-walk scepticism list, and the session record fields including module base and build identity"}
+      ],
+      "dependency_not_shipped": "an interactive debugger, and a target you are permitted to run",
+      "raise_grade": "Record one session with the module hash, the module base, the breakpoint family, and the control run, and store the transcript in this repository.",
+      "evidence_file_pointers": ["references/dynamic-debugging.md", "references/verification.md"]
+    },
+    {
+      "id": "runtime-instrumentation",
+      "capability": "Instrument a live process to read values crossing a chosen boundary, without rebuilding the target.",
+      "grade": "unverified",
+      "grade_not_higher": "The runtime is installed and the probe reports it present, which is an observation about the inventory only. No instrumentation run against any target is recorded in this tree.",
+      "evidence": [
+        {"kind": "command", "script": null, "command": "python -c \"import importlib.metadata as md; print(md.version('frida'))\" and the probe's tool inventory", "observed": "frida 16.7.19 importable; frida.exe and frida-ps.exe found on PATH; the runtime's own version command reports 16.7.19"},
+        {"kind": "documentation", "script": null, "command": "read references/injection-and-hooking.md", "observed": "the rule that a hook is a modification and therefore changes the observation, and the four checks (control, uninstall, transparency prediction, count rather than redirect) that keep a hook's result attributable"}
+      ],
+      "dependency_not_shipped": "the target's own build identity, and a target to attach to",
+      "raise_grade": "Instrument one target, count rather than redirect, and record the control and the uninstall test alongside the observation.",
+      "evidence_file_pointers": ["references/injection-and-hooking.md"]
+    },
+    {
+      "id": "injection-and-hooking",
+      "capability": "Place code inside a target process, and keep straight which observations still describe the target and which describe the instrument.",
+      "grade": "unverified",
+      "grade_not_higher": "The technique and its costs are described in detail; nothing here was performed. No injection mechanism and no hook library are shipped by this repository.",
+      "evidence": [
+        {"kind": "documentation", "script": null, "command": "read references/injection-and-hooking.md", "observed": "the three-step remote-thread mechanism with its per-step access requirements, the loader-versus-manual-map trade table, the hook location table, and the instruction-length problem for in-place hooks"}
+      ],
+      "dependency_not_shipped": "an injection mechanism and a hook library",
+      "raise_grade": "Perform one hook, record the transparency prediction before installing it, and show the uninstall test result.",
+      "evidence_file_pointers": ["references/injection-and-hooking.md", "references/handoff-boundaries.md"]
+    },
+    {
+      "id": "dump-and-repair",
+      "capability": "Capture a process address space, then rebuild a loadable image from it, restoring headers, layout, imports and relocation state.",
+      "grade": "unverified",
+      "grade_not_higher": "The procedure is documented in detail, including which capture type answers which question and what repair concretely requires. No process was dumped, no image was rebuilt, and no dumper is present on this host.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "the process-dumper tool and the network-capture reader were both reported unavailable, so neither branch of this route can be executed here without installing something"},
+        {"kind": "documentation", "script": null, "command": "read references/memory-and-dumps.md", "observed": "the file-image versus live-image difference table, the capture-type decision table, and the six-step repair procedure ending in the statement that a repaired image frequently still differs from the original program and that the difference is the finding"}
+      ],
+      "dependency_not_shipped": "a dumper, an image rebuilder, and a way to show the repaired image is the image that ran",
+      "raise_grade": "Dump one process, rebuild the image, load it, and record the differences from the on-disk original as the finding.",
+      "evidence_file_pointers": ["references/memory-and-dumps.md"]
+    },
+    {
+      "id": "network-activated-licensing",
+      "capability": "Classify whether a licence decision is taken locally or by a service, and decide whether a client-side change can be durable.",
+      "grade": "unverified",
+      "grade_not_higher": "The reference exists and the classification rule is stated; no capture, no replay and no account pair is recorded here, and no capture-reading tool was found on this host.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "the capture reader was reported unavailable in the tool inventory"},
+        {"kind": "documentation", "script": null, "command": "read references/network-activated-licensing.md and references/coverage-and-limits.md", "observed": "the route file is in the tree at the end of the window, and the coverage table grades this direction unverified on the grounds that no capture, no replay and no account pair is recorded"}
+      ],
+      "dependency_not_shipped": "a capture path and a test account",
+      "raise_grade": "Capture one target's licence flow twice with two accounts and change only the account; record the two outcomes against the same build.",
+      "evidence_file_pointers": ["references/network-activated-licensing.md", "references/handoff-boundaries.md"]
+    },
+    {
+      "id": "installers-and-packaging",
+      "capability": "Extract an installer's inner payload, then re-triage what came out as a new unknown.",
+      "grade": "unverified",
+      "grade_not_higher": "The route names a much larger dependency than this repository ships, and that is the whole of the grade: only the outer image is reachable with the shipped reader, while the inner container and install-time behaviour rest on nothing measured here.",
+      "evidence": [
+        {"kind": "tree_state", "script": null, "command": "python check_repo.py at 19:16, at 19:17 and at 19:22", "observed": "references/installers-and-packaging.md was reported MISSING at 19:16, present from 19:17, and every reference path resolves at 19:22. The grade records the route rather than the file, so it does not move when the file appears."},
+        {"kind": "documentation", "script": null, "command": "read references/coverage-and-limits.md", "observed": "the direction is graded inferred there on the grounds that the reader parses a PE and its resources, so an installer's outer image is readable, while the inner container and install-time behaviour rest on nothing measured"}
+      ],
+      "dependency_not_shipped": "an unpacker for the installer's own container, and a disposable machine to install on",
+      "raise_grade": "Extract one real installer, re-triage the payload, and record what the extraction lost.",
+      "evidence_file_pointers": ["references/installers-and-packaging.md", "references/coverage-and-limits.md"]
+    },
+    {
+      "id": "managed-recovery",
+      "capability": "Modify a managed assembly at the level its logic actually lives, and verify on the runtime.",
+      "grade": "unverified",
+      "grade_not_higher": "The reference exists; the reasoning about why a hex patch on metadata-described code does nothing is documented and coherent, but no assembly was modified and no intermediate-language toolchain is present on this host.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "the intermediate-language disassembler and assembler were both reported unavailable in the tool inventory, so the route cannot be executed here without installing something"},
+        {"kind": "documentation", "script": null, "command": "read references/managed-dotnet.md and references/pitfalls.md", "observed": "the metadata-table argument for why a body edit without a table update produces an assembly that loads and does something else, or fails with an error pointing nowhere near the edit"}
+      ],
+      "dependency_not_shipped": "a metadata and intermediate-language toolchain, plus a runtime to test against",
+      "raise_grade": "Change one managed method, run the assembly on its runtime, and record the observed behaviour change.",
+      "evidence_file_pointers": ["references/managed-dotnet.md", "references/pitfalls.md"]
+    },
+    {
+      "id": "code-virtualization-and-flattening",
+      "capability": "Recognise a virtualised or flattened routine and work it back toward readable form.",
+      "grade": "unverified",
+      "grade_not_higher": "The shapes are described in the reference; no virtualised target was analysed here and this repository deliberately ships no devirtualiser.",
+      "evidence": [
+        {"kind": "documentation", "script": null, "command": "read references/virtualization-and-flattening.md and references/coverage-and-limits.md", "observed": "the file is in the tree at the end of the window, and the coverage table grades the direction unverified with the note that in practice the budget is the reader's own"}
+      ],
+      "dependency_not_shipped": "a devirtualiser, and a bounded way to search the flattened state space",
+      "raise_grade": "Analyse one virtualised routine far enough to name the dispatcher and recover one handler, and record the cost.",
+      "evidence_file_pointers": ["references/virtualization-and-flattening.md"]
+    },
+    {
+      "id": "symbolic-execution-and-deobfuscation",
+      "capability": "Run an emulation or symbolic route over a routine whose constants come from somewhere unreadable.",
+      "grade": "unverified",
+      "grade_not_higher": "The reference exists and one emulation engine is installed, which is an inventory observation. No result from an engine is recorded here, and no symbolic engine is present.",
+      "evidence": [
+        {"kind": "command", "script": null, "command": "python -c \"import importlib.metadata as md; print(md.version('unicorn'))\" plus the probe's module inventory", "observed": "unicorn 2.1.4 importable (a CPU emulation engine); an assembler library and a pattern-rule library were both reported not installed"},
+        {"kind": "documentation", "script": null, "command": "read references/symbolic-execution.md", "observed": "the file is in the tree at the end of the window and the route is registered in the route table"}
+      ],
+      "dependency_not_shipped": "a symbolic execution engine, and a bound derived from a measurement rather than assumed",
+      "raise_grade": "Recover one constant by emulating a routine, and show the recovered value accepted by the target or by a second independent read.",
+      "evidence_file_pointers": ["references/symbolic-execution.md", "references/long-task-discipline.md"]
+    },
+    {
+      "id": "kernel-and-driver-analysis",
+      "capability": "Decide whether a decision was taken below the user-mode boundary, and analyse the kernel side of it.",
+      "grade": "unverified",
+      "grade_not_higher": "The reference exists and the probe reports the gate. No driver was built, signed or loaded here, and test signing is not enabled on this host. The three-observable signature of a check you cannot see is documented and was not measured.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "route row 'kernel driver load / test signing' in state needs-reboot-and-testsigning, with the note that virtualization-based security with enforced code integrity may refuse an unsigned driver regardless of the boot flags; the boot-flags row reported 'none', so no test-signing or debug boot flag is set on this host"},
+        {"kind": "documentation", "script": null, "command": "read references/kernel-and-drivers.md", "observed": "the file is in the tree at the end of the window and is registered in the reference table"}
+      ],
+      "dependency_not_shipped": "a signing path or a test-signing machine, a second host for debugging, and a driver toolchain",
+      "raise_grade": "Cross the boundary once in a snapshot that can be reverted, with the boot change recorded as a pin, and record the single variable that changed the outcome.",
+      "evidence_file_pointers": ["references/kernel-and-drivers.md", "references/handoff-boundaries.md"]
+    },
+    {
+      "id": "hardware-tracing",
+      "capability": "Observe a check without modifying anything, by recording the executed control-flow trajectory.",
+      "grade": "unverified",
+      "grade_not_higher": "Nothing was traced. The processor reports the feature and the probe states there is no documented user-mode path to the trace unit on this platform, so capture rather than decoding is the constraint. The reference exists at the remeasurement and was not exercised, so the procedure is documented and unmeasured.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "CPU row CPUID.07H.0:EBX[25] true, so the processor advertises trace support; route row 'Intel Processor Trace capture' in state 'no documented user-mode path on this platform' with the note that reaching the trace unit needs a driver or an undocumented in-box interface, and that a hypervisor is present. CPUID.14H.0 was printed raw (max sub-leaf 1, EBX=0x0000005F) rather than decoded."},
+        {"kind": "tree_state", "script": null, "command": "file existence check on references/hardware-tracing.md, plus python check_repo.py", "observed": "absent at the first measurement, where the gate reported MISSING skills\\exe-reverse\\SKILL.md -> references/hardware-tracing.md and the same from references/routing.md; present at the remeasurement, where every reference path resolves and the gate's only remaining problem is the leak scan. The grade is unchanged either way, because the file existing is not the same as the route having been run."}
+      ],
+      "dependency_not_shipped": "a capture path (driver or a documented interface), and a decoder",
+      "raise_grade": "Establish a capture path, trace one target's startup, and confirm the trace is pinned to an artifact digest and a host build.",
+      "evidence_file_pointers": ["references/hardware-tracing.md", "references/handoff-boundaries.md"]
+    },
+    {
+      "id": "hypervisor-assisted-observation",
+      "capability": "Observe from below a hypervisor when a debugger cannot own the debug registers.",
+      "grade": "unverified",
+      "grade_not_higher": "Nothing was observed from inside a hypervisor. The host has a hypervisor present, which is a fact about this machine that raises the relevance of the route without making it available. The reference exists at the remeasurement and was not exercised.",
+      "evidence": [
+        {"kind": "command", "script": "hwprobe.py", "command": "python skills/exe-reverse/scripts/hwprobe.py --json", "observed": "CPU row CPUID.01H:ECX[31] true (a hypervisor is running the guest), and the hardware-breakpoint route row is consequently reported as needing a debugger with the hypervisor caveat attached. Four security-feature registry rows were reported unavailable with the explicit statement that an absent value is not the same as the feature being off, so the security-service state on this host is unknown rather than disabled."},
+        {"kind": "tree_state", "script": null, "command": "file existence check on references/hypervisor-observation.md, plus python check_repo.py", "observed": "absent at the first measurement, where the gate reported it missing from both SKILL.md and references/routing.md; present at the remeasurement."}
+      ],
+      "dependency_not_shipped": "a hypervisor, a configuration that permits it, and a second host",
+      "raise_grade": "Establish the route on a host where it can be configured, and record which observations the hypervisor could see that a user-mode instrument could not.",
+      "evidence_file_pointers": ["references/hypervisor-observation.md", "references/coverage-and-limits.md"]
+    },
+    {
+      "id": "pe-diff-and-versions",
+      "capability": "Compare two builds of one program structurally, to find what moved between versions.",
+      "grade": "unverified",
+      "grade_not_higher": "Both the reference and the script now exist in the tree, but neither was exercised in this pass. The only two-build comparison observed here is the pattern-across-builds mode of the scanner.",
+      "evidence": [
+        {"kind": "command", "script": "aob_scan.py", "command": "python skills/exe-reverse/scripts/aob_scan.py %TEMP%\\exe-reverse-evidence\\fixture64.exe --patterns \"<plant>\" --across %TEMP%\\exe-reverse-evidence\\fixture64.patched.exe", "observed": "hit counts 2 against 1 for the same pattern, reported as 'the pattern still matches something; it is not established that it matches the same thing'"},
+        {"kind": "observation", "script": null, "command": "directory listing at 19:17", "observed": "scripts/pe_diff.py is present at 26572 bytes and was not run in this pass; references/pe-diff-and-versions.md is present in the reference list at the end of the window"}
+      ],
+      "dependency_not_shipped": "two real builds of one product to compare",
+      "raise_grade": "Diff two real versions and record which structures moved, with both file hashes as the pins.",
+      "evidence_file_pointers": ["references/pe-diff-and-versions.md", "references/aob-and-signatures.md"]
+    },
+    {
+      "id": "static-analysis-disassembly",
+      "capability": "Disassemble and read the code inside an image, from a justified instruction boundary.",
+      "grade": "unverified",
+      "grade_not_higher": "No disassembly was performed in this pass. A disassembly library is installed and a binutils disassembler is on PATH, which are inventory observations; the reference's warnings about desynchronised instruction streams are documented rather than demonstrated here.",
+      "evidence": [
+        {"kind": "command", "script": null, "command": "python -c \"import importlib.metadata as md; print(md.version('capstone'))\" plus the probe's tool inventory", "observed": "capstone 5.0.9 importable; a binutils disassembler reported present and version 2.28 by its own version command"},
+        {"kind": "documentation", "script": null, "command": "read references/static-analysis.md and the instruction-width section of references/patching.md", "observed": "the file is in the tree at the end of the window; the desynchronised-stream symptom list is documented"}
+      ],
+      "dependency_not_shipped": "nothing beyond the installed disassembler; the gap is a recorded run, not a dependency",
+      "raise_grade": "Disassemble one routine from a call site, and confirm a claim from the listing against the actual bytes.",
+      "evidence_file_pointers": ["references/static-analysis.md", "references/pe-structure.md"]
+    },
+    {
+      "id": "capability-registry",
+      "capability": "Publish the machine-readable capability registry the entry point advertises, and resolve each registered capability against the host that is actually running.",
+      "grade": "observed",
+      "grade_not_higher": "The registry runs and reports. What it reports is a per-host state per capability, which is a fact about the machine and not about the routes: a registered capability reported available here is available here, and nothing about that transfers. The registry was also absent for most of the measurement pass, so a reader of the earlier revision had no registry at all.",
+      "evidence": [
+        {"kind": "command", "script": "capabilities.py", "command": "python skills/exe-reverse/scripts/capabilities.py --json", "observed": "21 registry entries, keys id, what, needs, needs_short, detect, script, reference, boundary; the top-level JSON also carries python, platform, probe, host, capabilities and states. The probe block reports {\"available\": false, \"reason\": \"not probed (no --check)\"}, so the file states which mode produced its numbers rather than implying that a static listing was a measurement."},
+        {"kind": "command", "script": "capabilities.py", "command": "python skills/exe-reverse/scripts/capabilities.py --check", "observed": "'capabilities.py: error: choose one of --list, --check, --explain ID or --json' with exit 2 when invoked with no mode, and with a mode: '21 capabilities: available=14, needs-something=7', each row naming the script that covers it or the thing it needs, for example interactive-user-debugger reported needs-x64dbg and memory-dump-analysis reported needs-procdump with the note that the inventory behind the row is the probe's tool scan. It closes by stating that a capability this host lacks is a finding about the machine, not a failure of the task, and never changes the exit code."},
+        {"kind": "comparison", "script": null, "command": "registry --json against this file's rows", "observed": "the registry enumerates 21 capabilities and this evidence file grades 28 routes. The two are different granularities rather than a disagreement: the registry is the shipped index of routes, and this file is a per-route evidence record that also carries routes the registry does not enumerate, including the reference-only ones. A reader should not treat the registry as this file, or the reverse."},
+        {"kind": "tree_state", "script": null, "command": "file existence check on scripts/capabilities.py", "observed": "absent at the first measurement, where the gate reported MISSING skills\\exe-reverse\\SKILL.md -> scripts/capabilities.py; present at 27186 bytes at the remeasurement. The row is graded on the later state because the script was run there."}
+      ],
+      "dependency_not_shipped": "nothing to run it; the registry depends on the probe's inventory for the rows it cannot measure itself",
+      "raise_grade": "Add a check that every registered capability has a matching evidence row here with a grade, so that a capability cannot be registered without a recorded basis.",
+      "evidence_file_pointers": ["SKILL.md frontmatter (capability_registry)", "references/routing.md"]
+    }
+  ]
+}

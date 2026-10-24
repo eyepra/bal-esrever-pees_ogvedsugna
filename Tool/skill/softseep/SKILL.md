@@ -1,6 +1,6 @@
 ---
 name: softseep
-description: 【逆向工程总控入口 / Orchestrator】本 Skill 是整个工作体系的**唯一入口与总调度**。**用户只需输入大白话，softseep 自动完成两步判型**：① 平台（Windows/Android/Linux/Web/Flutter）② 逆向类型（授权许可 / 补丁本地化 / 脱壳解包 / 算法还原 / 协议分析 / 样本研判 / UI 伪造 / 加固对抗 / 测绘报告），随后自动分发到对应子能力。它自身不承载战术细节，所有深度内容在 `references/` 按需加载（Windows 6 步 SOP、汇编打桩字典、五层纵深防御、UI 验收工装、编译器陷阱、九型项目范式库、许可/激活/卡密校验手册、工具脚本索引）。内置 G-Auth 授权门、路由矩阵与调度纪律。当用户下达任何逆向、白盒审计、客户端逻辑验证、许可校验、补丁本地化、脱壳解包、算法还原、样本研判、UI 伪造、加固对抗或逆向测绘任务时，**首先加载此 Skill** —— 由它判型后分发到 apkseep / ida-reverse / seep MCP / ida MCP / playwright / Tool/scripts / reverselab 等子能力。
+description: 【逆向工程总控入口 / Orchestrator】本 Skill 是整个工作体系的**唯一入口与总调度**。**用户只需输入大白话，softseep 自动完成两步判型**：① 平台（Windows/Android/Linux/Web/Flutter）② 逆向类型（授权许可 / 补丁本地化 / 脱壳解包 / 算法还原 / 协议分析 / 样本研判 / UI 伪造 / 加固对抗 / 测绘报告），随后自动分发到对应子能力。它自身不承载战术细节，所有深度内容在 `references/` 按需加载（Windows 6 步 SOP、**Windows 深水区机制字典桥接**、汇编打桩字典、五层纵深防御、UI 验收工装、编译器陷阱、九型项目范式库、许可/激活/卡密校验手册、**三层门禁交叉映射表**、工具脚本索引）。内置 G-Auth 授权门、路由矩阵与调度纪律。当用户下达任何逆向、白盒审计、客户端逻辑验证、许可校验、补丁本地化、脱壳解包、算法还原、样本研判、UI 伪造、加固对抗或逆向测绘任务时，**首先加载此 Skill** —— 由它判型后分发到 exe-reverse / apkseep / ida-reverse / seep MCP / ida MCP / playwright / Tool/scripts / reverselab 等子能力。
 license: MIT
 compatibility: Windows 10 / Windows 11 x64 为主。支持 Python 3.8+，搭配 C/C++ 编译器（Zig/MSVC）或 radare2/IDA Pro 逆向套件。跨平台等价路径见 `references/license-validation.md` §1 平台对照表。
 metadata:
@@ -35,6 +35,11 @@ metadata:
 2. **判型是 softseep 的职责，不是用户的负担** —— 用户说大白话，本主控自己归类；
    **绝不把"请选择平台/类型"的选择题甩回给用户**；
 3. **判型不可跳过** —— 不先判平台与类型就开工 = 违规（错平台代价是整轮工作作废）。
+
+**门禁命名空间铁律（新增）**：本体系有三套 `G` 开头的门禁，**同名不同义**。
+引用时必须带层前缀 —— `AUTH-G0…G4`（本文件许可门控） / `APK-G1…G4`（apkseep） /
+`EXE-G1…G5`（exe-reverse）。裸 `G2` 视为歧义，必须先澄清。
+交叉映射见 `references/gate-crosswalk.md`。
 
 ---
 
@@ -91,8 +96,8 @@ metadata:
 
 | 信号 | 平台 |
 | :--- | :--- |
-| `.apk` / `.aab` / `.dex` / `.so`(Android ABI) / `AndroidManifest.xml` / 用户说"apk·安卓·手机软件" | **Android** |
-| `.exe` / `.dll` / `.sys` / PE 头 `MZ` / 用户说"exe·电脑软件·桌面软件" | **Windows** |
+| `.apk` / `.aab` / `.dex` / `.so`(Android ABI) / `AndroidManifest.xml` / `module.prop` / `xposed_init` / 用户说"apk·安卓·手机软件·LSPosed·KernelSU·Magisk" | **Android** |
+| `.exe` / `.dll` / `.sys` / `.msi` / `.node` / PE 头 `MZ` / `GameAssembly.dll` / `python3xx.dll` / `_internal` / `pyarmor_runtime` / `app.asar` / 用户说"exe·电脑软件·桌面软件·驱动·内核" | **Windows** |
 | `.elf` / Linux 服务 / `\x7fELF` | **Linux** |
 | `.js` / `.asar` / Web 前端 / 用户说"网站·网页·接口·前端" | **Web/JS** |
 | `libapp.so` + `global-metadata.dat` / 用户说"flutter·跨平台" | **Flutter** |
@@ -111,12 +116,22 @@ metadata:
 | "抓包" / "接口" / "协议" / "请求怎么发的" | **协议分析** | `license-validation.md` §6 |
 | "是不是病毒" / "分析样本" / "行为" / "IOC" | **样本研判** | ida MCP + YARA |
 | "改界面文字" / "关于对话框" / "显示不对" | **UI 伪造** | `ui-verification.md` |
-| "过检测" / "反调试" / "反 hook" / "完整性校验" | **加固对抗** | `defense-in-depth.md` |
+| "过检测" / "反调试" / "反 hook" / "完整性校验" | **加固对抗** | `defense-in-depth.md` → Windows 深水区转 `windows-deep.md` |
+| "打补丁" / "特征码" / "AOB" / "校验和不对" / "补丁没生效" | **补丁工程** | `windows-deep.md` → exe-reverse `patching` / `aob-and-signatures` |
+| "有壳" / "节区乱码" / "导入表空" / "VMP" / "控制流平坦化" | **保护壳/虚拟化** | `windows-deep.md` → exe-reverse `protectors-and-packers` / `virtualization-and-flattening` |
+| ".NET" / "C#" / "反编译名字全丢" | **托管程序集** | `windows-deep.md` → exe-reverse `managed-dotnet` / `dotnet-decompilation` |
+| "Unity" / "IL2CPP" / "metadata 读不出" / "pyinstaller" / "pyarmor" | **运行时捆绑** | `windows-deep.md` → exe-reverse `unity-il2cpp` / `python-runtime-bundles` |
+| "驱动" / ".sys" / "内核" / "所有 hook 都被检测" | **内核/硬件层** | `windows-deep.md` → exe-reverse `kernel-and-drivers` / `hardware-tracing` |
+| "LSPosed" / "Xposed" / "hook 模块" / "分析模块" / "Vector" / "KernelSU" / "APatch" / "Magisk" | **模块开发/逆向** | `apkseep` (`lsposed-and-modules` / `kernel-and-environment-hardening`) |
 | "出个报告" / "整理成果" / "测绘" | **测绘报告** | `project-paradigms.md`（报告模板） |
 | "看看这个 exe" / "分析下这个文件"（无明确动词） | **默认：测绘/分析** | `windows-sop.md` Step 1-2 |
 
 **复合意图**：一句话含多个意图（如"脱壳后破解会员"）⇒ **按依赖顺序串行**：
 脱壳 → 算法还原 → 授权分析 → 补丁 → 报告。
+
+**Windows 深水区分流规则**：当类型落入「补丁工程 / 保护壳·虚拟化 / 托管程序集 / 运行时捆绑 /
+内核·硬件层 / 算法还原」任一，且需要**机制级判定**（而不是交付流程）时，加载
+`references/windows-deep.md` —— 它给出中文意图 → `exe-reverse` 参考文件的唯一映射。
 
 **判型输出**（内部记录即可，不必告知用户）：
 ```
@@ -128,28 +143,31 @@ metadata:
 | | **Windows** | **Android** | **Linux** | **Web/JS** |
 | :--- | :--- | :--- | :--- | :--- |
 | **授权/许可** | 前置门控 + `project-paradigms` | `apkseep` + 前置门控 | 前置门控 | `license-validation` |
-| **补丁/本地化** | `windows-sop` | `apkseep`（dex patch） | `windows-sop` 类比 | — |
-| **脱壳/解包** | `windows-sop` | `apkseep`（packers） | ida-reverse | — |
-| **算法还原** | `project-paradigms` | `apkseep` | ida-reverse | `license-validation` §7 |
+| **补丁/本地化** | `windows-sop` + **`windows-deep`** | `apkseep`（dex patch） | `windows-sop` 类比 | — |
+| **脱壳/解包** | `windows-sop` + **`windows-deep`** | `apkseep`（packers） | ida-reverse | — |
+| **算法还原** | `project-paradigms` + **`windows-deep`** | `apkseep` | ida-reverse | `license-validation` §7 |
 | **协议分析** | `license-validation` §6 | `apkseep` | seep MCP | playwright |
 | **样本研判** | ida MCP + YARA | `apkseep` | ida-reverse | — |
 | **UI 伪造** | `ui-verification` | — | — | — |
-| **加固对抗** | `defense-in-depth` | `apkseep`（anti-tamper） | — | — |
+| **加固对抗** | `defense-in-depth` + **`windows-deep`** | `apkseep`（anti-tamper） | — | — |
+| **模块开发/逆向** | — | `apkseep`（LSPosed / KernelSU） | — | — |
 
 ### 可调度的全部资源
 
 | 类别 | 资源 | 调用方式 | 用途 |
 | :--- | :--- | :--- | :--- |
-| **Skill** | softseep（本体） | 本文件 + `references/` | 总控 + Windows 战术 |
+| **Skill** | softseep（本体） | 本文件 + `references/` | 总控 + Windows 交付流水线 |
+| | **exe-reverse** | `~/.pi/agent/skills/exe-reverse/SKILL.md` | **Windows PE 深水区：机制字典 + 16 个可执行引擎** |
 | | **apkseep** | `~/.pi/agent/skills/apkseep/SKILL.md` | Android APK/DEX/SO 全链路 |
 | | **ida-reverse** | `~/.pi/agent/skills/ida-reverse/SKILL.md` | IDA 自动唤醒 + 联动 |
 | | client-license-validation-bypass | `Tool/client-license-validation-bypass/SKILL.md` | 许可校验专项 |
 | | Tool/safe/skills（5 个） | `Tool/safe/skills/` | radare2 / reverse-engineering / mcp-js-reverse-playbook 等 |
-| **MCP** | **seep**（22 工具） | `seep_r2_*` / `seep_apk_*` / `seep_kb_*` | 二进制 + APK + 知识库 |
+| **MCP** | **seep**（27 工具） | `seep_r2_*` / `seep_pe_*` / `seep_apk_*` / `seep_kb_*` | 二进制 + **PE 引擎** + APK + 知识库 |
 | | **ida**（~243 工具） | `mcp_ida_*` | 深度反编译 / 交叉引用 |
 | | **playwright** | 浏览器工具 | Web / JS 审计 |
 | **脚本** | `Tool/scripts/` | `case-init.ps1` / `trigger_ida_mcp.ps1` / `refresh-tool-index.ps1` | 建档 / IDA 唤醒 / 自检 |
 | | `Tool/scripts/apk/` | `decode.ps1` / `rebuild-sign-install.ps1` / `frida-run.ps1` | APK 三件套 |
+| | **`exe-reverse/scripts/`** | 优先走 MCP：`seep_pe_triage` / `seep_pe_aob_scan` / `seep_pe_diff` / `seep_pe_patch`；其余 `doctor.py` / `fold.py` 直接跑 | **PE 体检 / 等长补丁 / 特征码 / 差分 / 大输出摘要** |
 | **知识库** | reverselab | `Tool/reverselab/kb/`（316 文件） | 攻防方法论 |
 | | seep KB | `seep_kb_search` / `_read` / `_checklist` / `_payloads` | 在线检索 |
 | **工具资产** | aotopsy | `Tool/aotopsy/` | Flutter AOT 分析 |
@@ -157,6 +175,8 @@ metadata:
 ### 跨平台共通项（判型后仍适用）
 
 - 授权/许可分析 → 【前置门控】四问 + 九型判型（**两平台通用**）
+- **门禁引用必须带层前缀**：`AUTH-G0…G4` / `APK-G1…G4` / `EXE-G1…G5`（见 `references/gate-crosswalk.md`）
+- **Windows 深水区任务，第一条命令是 `python scripts/doctor.py`**（`EXE-G2`：先探主机，不许假设）
 - 知识库查询 → `seep_kb_search` → `seep_kb_read`
 - 任务建档 → `case-init.ps1`
 - 报告生成 → `seep_gen_security_report` / `project-paradigms.md` 报告模板

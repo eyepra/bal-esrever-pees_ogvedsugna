@@ -12,7 +12,136 @@
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-24
+
+### 修复：作战模式隔离不彻底（真实泄漏，不是理论问题）
+
+用户需求：**只有输入 `lab：` 才触发工作台，日常使用不应被逆向纪律污染。**
+
+上一版把开关改成了会话级内存，但只做了一半 —— 全局 `AGENTS.md` 仍然**每个会话无条件加载**，
+里面写着思维重定向、反退缩十项、G-Auth 授权门、Zero-Waste Recon 提效路由。
+结果是：哪怕你没输入 `lab：`，写个普通脚本也在"反退缩十项硬约束"之下运行。
+
+### 变更
+
+- **`AGENTS.md` 瘦身（9.5 KB → 6.4 KB，去人格化）**：只保留
+  ① 作战模式开关说明 ② **非 lab 会话禁令** ③ 部署/更新/卸载/校验命令。
+  所有逆向纪律移出，改由 `seep-system.md` 在 `lab：` 后注入。
+- **新增非 lab 禁令（硬规则）**：未输入 `lab：` 的会话中，禁止加载任何逆向技能、
+  禁止调用 `seep_*` MCP 工具、禁止主动推销逆向能力、禁止套用反退缩话术。
+- **`SYSTEM.md` 协议改写**：实验环境开关从"磁盘标志文件"改为**会话级内存**；
+  新增 G-Auth 授权门与配套资源路径（从 AGENTS.md 迁入）。
+- **中继开关解耦（`relay.py`）**：改写开关改为独立的 `~/.pi/agent/compliance-relay.flag`，
+  不再依赖 `lab-mode.flag`。旧文件仍识别（向后兼容）。
+  原因：lab 改为内存状态后磁盘上不再有人写该文件，继续以它为门会让中继**永久关闭**。
+- 文档同步：`README.md` / `README.zh.md` / `DEPLOYMENT-CHECKLIST.md` / `DEPLOYMENT.md` /
+  `COMPLIANCE-RELAY.md` / `PROVENANCE.md` / 中继 `README.md` 全部改口径。
+
+### 验证记录（observed）
+
+用 esbuild 打包扩展后，以 mock ExtensionAPI 驱动全部 5 个钩子，8 项断言全过：
+
+| # | 场景 | 结果 |
+|---|---|---|
+| 1 | 新会话 + 普通输入"帮我写个 Python 脚本" | `action: continue`（原样放行） |
+| 2 | 未激活时 `before_agent_start` | `undefined`（**不注入**任何提示词） |
+| 3 | 输入 `lab：` | 激活，返回"已开启（仅限当前会话）" |
+| 4 | 激活后 `before_agent_start` | 注入 8589 字符，含 `G-Auth` 与 `反退缩` |
+| 5 | 激活后敏感词输入 | 转译为"白盒鉴权脆弱性测试 / 受限权限功能模块"+ 合规前缀 |
+| 6 | 输入 `退出实验` | 立即关闭 |
+| 7 | 退出后 `before_agent_start` | `undefined`（注入停止） |
+| 8 | 退出后普通输入 | `action: continue`（恢复纯净） |
+
+中继单元测试：**84/84 通过**（开关改动未破坏既有行为）。
+`verify.ps1`：53/53 核心检查通过。
+
+## [1.8.1] - 2026-10-24
+
 ### 新增
+
+- **🔌 PE 引擎统一收口进 `seep` MCP（23 → 27 工具）**：
+  - `seep_pe_triage`：一次过 PE 体检（节区/熵、导入导出、TLS、资源、PDB、CLR、校验和比对、保护信号）。
+  - `seep_pe_aob_scan`：AOB 特征码定位 + `unique` / `ambiguous` / `pervasive` / `no-match` 裁决，支持 `across` 跨版本命中数对比。
+  - `seep_pe_diff`：归一化易变头字段（TimeDateStamp / CheckSum）后的构建差分，差异区间映射回 RVA。
+  - `seep_pe_patch`：可验证等长补丁（校验和重算 + 写盘后逐字节回读），支持 `dry_run`。
+  - 四个工具与 `seep_r2_*` / `seep_apk_*` 保持同一返回风格与命名规范；`seep_status` 新增 `pe_engine_exe_reverse` 组件状态。
+  - 实现方式为**薄包装**：不重写引擎，只做参数校验、路径解析（兼容工作台内嵌 / 上游镜像 / 已安装技能三种布局）、输出有界截断与错误归一化。
+
+### 安全护栏（工具层强制，不依赖模型自觉）
+
+- `seep_pe_patch` 拒绝 `out_path == pe_path`（原地覆盖一律拒绝）。
+- 非 `dry_run` 时必须显式给出 `out_path`；`at_rva` / `at_offset` / `pattern` 三选一，多给或少给都拒绝。
+- `expect=` 与实际字节不符时底层脚本直接中止，**且不产生输出文件**（已验证）。
+- 四个 PE 工具中只有 `seep_pe_patch` 会写盘，其余三个严格只读。
+
+### 验证记录（observed）
+
+- 工具注册数：**23 → 27**（`seep_pe_triage` / `seep_pe_aob_scan` / `seep_pe_diff` / `seep_pe_patch` 均已注册）。
+- `seep_status()` 正确报告 `pe_engine_exe_reverse.status = Ready` 并给出解析到的 scripts 路径。
+- 功能实测（合成 PE fixture）：
+  - `seep_pe_triage` → 完整报告（校验和 match、5 个节区、保护信号 4 条）；
+  - `seep_pe_aob_scan` → 植入两处 → 正确裁决 `ambiguous`，并列出 `0x410` / `0x424` 两个命中；
+  - `seep_pe_diff` → 自身对自身 → 只报告被归一化的易变字段，无内容差异；
+  - `seep_pe_patch` → 原地覆盖/缺 out/双定位器/无定位器四种误用全部被拒；`dry_run` 正确预览；实际落盘后 `checksum recomputed` + `every patched byte re-read from the written file`；`expect` 不匹配时中止且**未创建输出文件**。
+
+## [1.8.0] - 2026-10-24
+
+### 新增
+
+- **🪟 Windows PE 深水区执行层 `exe-reverse`（第 10 个技能）**：
+  - 纳入 `https://codeberg.org/dabao1955/exe-reverse`（MIT，上游 SHA `c6ef186`），**上游文件零修改**，仅加 `ATTRIBUTION` 注释块与本地 `LOCAL-NOTES.md`，因此上游同步始终是纯拷贝。
+  - 41 篇带门禁的参考文档 + **16 个零依赖 Python 引擎**（纯标准库）：
+    `peutil`（RVA↔偏移双向、导入/导出/资源/TLS/重定位/PDB、微软算法校验和、逐节熵）、
+    `pe_triage`、`pepatch`（等长补丁 + 歧义守卫 + 校验和重算 + **写盘后逐字节回读**）、
+    `aob_scan`（unique / ambiguous / pervasive / no-match 裁决）、`pe_diff`、`hwprobe`、`capabilities`、
+    `plan`、`preflight`、`fold`、`trace_reduce`（可选 SMT 证明）、`scan_leaks`、`make_fixture_pe`、
+    `dart_snapshot_strings`、`gate_probe.js`。
+  - 覆盖：PE 结构、补丁纪律、AOB 签名、完整性校验、保护壳、虚拟化/控制流平坦化、算法还原、
+    符号执行、.NET 托管程序集、Unity IL2CPP、打包 Python、Flutter Dart AOT、内核驱动、
+    硬件追踪与 Hypervisor 观测。
+- **🚦 三层门禁命名空间消歧（`gate-crosswalk.md`）**：
+  - 发现 `softseep` / `apkseep` / `exe-reverse` 各自使用 `G1–G4` 但**同名不同义**（同一个 `G2` 在三处分别指“写入判死归因 / 环境真实性 / 主机真实性”），已建立 `AUTH-G0…G4` / `APK-G1…G4` / `EXE-G1…G5` 前缀约定与执行顺序图，并将“裸 G2 视为歧义”写入 SKILL.md 硬规则。
+- **🌉 Windows 深水区中文桥接（`windows-deep.md`）**：
+  - 中文大白话 → `exe-reverse` 参考文件的唯一映射表（补丁/壳/虚拟化/.NET/IL2CPP/Python 打包/驱动/硬件追踪/算法还原）。
+  - 明确与 `windows-sop.md` 的分工：后者是**交付流水线**，前者是**机制字典**。
+- **🔄 上游第 4 条声明式规则**：`setup/upstream-rules.json` 新增 `exe-reverse` → `Tool/upstream/exe-reverse`（`preserve_local: []`），Codeberg 源已通过 `git ls-remote` 可达性验证，防外溢单测 6/6 通过。
+
+### 变更
+
+- `softseep` 路由矩阵新增 Windows 深水区 6 类意图（补丁工程 / 保护壳·虚拟化 / 托管程序集 / 运行时捆绑 / 内核·硬件层 / 模块开发），并补充平台判型信号（`.msi` / `.node` / `GameAssembly.dll` / `python3xx.dll` / `_internal` / `pyarmor_runtime`）。
+- `softseep` references 由 8 篇增至 **10 篇**；体检技能项由 9 项增至 **10 项**，`verify.ps1` / `verify.sh` 新增 `exe-reverse` 校验（SKILL.md + ≥41 refs + ≥16 scripts）。
+- `README.md` / `README.zh.md` / `PROVENANCE.md` / `DEPLOYMENT-CHECKLIST.md` / `CLAUDE.md` / `AGENTS.md` / `DEPLOYMENT.md` 全面同步第 10 个技能与第 4 个上游。
+- 体检新增 Windows 无 Python-in-PATH 时的**常见安装路径自愈探测**（`C:\Program Files\Python3xx`、`%LOCALAPPDATA%\Programs\Python\Python3xx`），消除“明明装了 Python 却报 MISSING”的误判。
+
+### 验证记录（observed）
+
+- `scripts/doctor.py`：**16/16 脚本可运行**；本机 28 项能力中 14 项 `ok`，14 项 `BLK`（缺调试器/IDA/测试签名，属宿主限制而非缺陷）。
+- 端到端往返：`make_fixture_pe` → `pe_triage` → `aob_scan`（植入两处 → 正确报 `ambiguous`）→ `pepatch`（dry-run → 落盘）→ 独立复核：原文件 SHA256 不变、补丁文件校验和 `0x10bad → 0x1181` 重算正确、RVA `0x1010` 处字节确为 `90 90 90`。
+- 红线取证：上游 `0 strong / 16 weak / 102 suppressed`，`RESULT=clean`；`docs/tool-acquisition.md` 明确写明 “No cracked builds, no key generators, no patched installers”；外部链接仅官方厂商文档 / GitHub / Microsoft Learn。
+
+## [1.7.0] - 2026-10-23
+
+### 新增
+
+- **🚀 现代 LSPosed 与 Vector 双模架构支持 (API 101+)**：
+  - 更新 `Tool/skill/apkseep/references/lsposed-and-modules.md`：
+    - 详述经典 XposedBridge (API 82) 与现代 Vector / libxposed (API 100/101/102) 差异（`META-INF/xposed/java_init.list`、`io.github.libxposed.api.XposedModule`、拦截器链式 Hooker 模型、`xposedscope`）；
+    - 制定第三方未知模块逆向分析 4 步 SOP（入口定位、作用域提取、混淆方法与特征指纹反查、JNI Native 挂钩剖析）；
+    - 引入动态 ClassLoader 构造 Hook 方案（针对动态解密 Dex、插件化与加壳应用）；
+    - 整合真机免逆向动态辅助武器库（算法助手 Algorithm Aide、SimpleHook、LSPilot）；
+    - 提供三大 AI 逆向协同 Prompt 模板（入口分析、混淆还原、Native 意图解析）。
+- **🛡️ KernelSU 内核级 Root 与 Systemless 深度防御与对抗**：
+  - 更新 `Tool/skill/apkseep/references/kernel-and-environment-hardening.md`：
+    - 引入 `preinit/preinit.conf`（SELinux 策略前阶段执行最高权限 `insmod`/`exec`/`write`）；
+    - 引入 `initrc/` 系统级 RC 脚本透明注入机制；
+    - 详述 Linux 内核原生 OverlayFS 机制（Whiteout `mknod c 0 0` 虚拟删除、Opaque 属性整块目录替换）；
+    - 解析 BusyBox ash 独立运行环境 (`ASH_STANDALONE=1`) 与 ZygiskNext 桥接规范。
+- **⚙️ 双模 LSPosed 脚手架引擎升级**：
+  - 增强 `Tool/skill/apkseep/scripts/lsposed_scaffold.py`：新增 `--api {legacy, modern}` 参数与 `--with-classloader-hook` 选项，一键生成经典 API 82 或现代 libxposed Vector API 101 骨架，并支持无 Gradle 极速编译链。
+- **📚 ReverseLab 攻防知识库扩展**：
+  - 新增 `09-lsposed-root/01-modern-lsposed-module-analysis.md` 与 `09-lsposed-root/02-kernelsu-root-mechanisms.md`，同步更新 `kb-index.json` 索引。
+- **🧠 总控判型与调度升级 (`softseep`)**：
+  - `Tool/skill/softseep/SKILL.md` 新增对 LSPosed、Xposed、Vector、KernelSU、APatch、Magisk 等大白话意图的自动判型与精准路由。
 
 - **🌐 上游定点隔离同步与防外溢体系 (Zero-Spillover Upstream Sync)**：
   - 新增 `setup/upstream-rules.json`：声明式上游规则清单，严格绑定每个上游仓库的唯一目标目录与白名单边界。

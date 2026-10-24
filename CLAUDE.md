@@ -48,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
 > 完成后必须提醒用户：**完全重启 Agent 会话**，然后发 `lab：` 继续开工。
 
 ### 1d. 上游仓库定点隔离同步（防外溢机制）
-当需要同步上游三大开源仓库最新改动时，执行：
+当需要同步上游四大开源仓库最新改动时，执行：
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\setup\sync-upstream.ps1 -Target all
 ```
@@ -83,7 +83,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup\verify.ps1 -Detailed
 
 - **汇报输出要求**：
   Agent 读取命令返回后，必须以 `MANUAL/DEPLOYMENT-CHECKLIST.md` 官方基准为蓝本，在对话框向用户输出清晰的结构化校对看板，包含：
-  1. **🛠️ 技能系统 (Skills - 9项)**：逐项列出【技能名】\|【目标路径】\|【期望文件数】\|【实际文件数】\|【可用状态 (🟢 READY / 🔴 MISSING)】；
+  1. **🛠️ 技能系统 (Skills - 10项)**：逐项列出【技能名】\|【目标路径】\|【期望文件数】\|【实际文件数】\|【可用状态 (🟢 READY / 🔴 MISSING)】；
   2. **🔌 MCP 服务 (4大引擎)**：逐项列出【服务名】\|【期望工具数】\|【实际状态】\|【状态判定】\|【降级或修复说明】（未装 IDA 时明确标明 `🟡 DEGRADED: 已由内置 Radare2 自动承接`）；
   3. **🔧 物理内置工具箱**：Radare2 (v6.2.2)、Jadx (v1.5.6)、Apktool (v3.0.3) 与 289+ 知识库状态；
   4. **🚀 总结与开工建议**：告知用户工作台当前可用能力，并提示重启会话输入 `lab：` 开启白盒审计。
@@ -92,7 +92,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\setup\verify.ps1 -Detailed
 
 ## 三、 工作纪律与红线
 
-1. **绝对禁止搬动 `Tool/mcp/Tool/` 目录**：seep MCP 内部硬编码了相对路径 `TOOL_DIR = <脚本目录>/Tool`，搬动将导致 23 个底层分析工具全部瘫痪。
+1. **绝对禁止搬动 `Tool/mcp/Tool/` 目录**：seep MCP 内部硬编码了相对路径 `TOOL_DIR = <脚本目录>/Tool`，搬动将导致 27 个底层分析工具全部瘫痪。
 2. **严禁修改 `seep_mcp_server.py` 的路径常量**。
 3. **商业软件隔离**：IDA Pro 属于商业授权，不随包打包分发。检测不到时自动引导用户阅读 `MANUAL/IDA-PRO.md`，由 Radare2 自动降级承接。
 4. **受权范围白盒审计（G-Auth）**：所有测试目标必须确认已获书面授权。
