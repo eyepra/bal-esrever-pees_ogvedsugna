@@ -12,6 +12,14 @@
 
 ## [Unreleased]
 
+### 案例库：项目D 合并原地演进至 v1.6.1（build 16 支持）
+
+- `Tool/cases/项目D/docs/reverse-engineering.md` 新增 §10：build 16 代码重排迁移（.text +245 KB、段内位移非均匀、capstone 局部定向反汇编、操作数补丁识别）
+- `Tool/cases/项目D/docs/algorithm.md` 位点表扩为**六版本**矩阵，新增 §3.3（签名长度上限决策、IAT 地址常量导致左扩展收缩）
+- `Tool/cases/项目D/README.md` 新增 v1.6.1 演进章节（回归断言 98 → 118）
+- `Tool/cases/项目D/tools/09_multiversion_extend.py` 新增**一体化扩展流水线**（JSON 配置驱动，三级定位自动降级）
+- KB 笔记 `10-multiversion-signature-narrowing.md` 新增陷阱三（签名长度上限）与陷阱四（验证方法本身会骗你）
+
 ## [1.8.2] - 2026-10-24
 
 ### 修复：作战模式隔离不彻底（真实泄漏，不是理论问题）
