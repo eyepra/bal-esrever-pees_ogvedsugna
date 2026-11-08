@@ -12,6 +12,387 @@
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-09
+
+### 纠正一个错误结论：DSH 是有 skill 机制的
+
+之前为了给 DSH 做差距分析，我判断「DSH 没有 skill 加载器，10 个技能按 N/A 处理」。
+这个判断是错的，而且错得影响整条路线。
+
+核 `dsh` 0.2.2 的插件清单才发现：DSH 有完整的技能体系，只是在 `web` profile 里
+默认关掉了。
+
+```yaml
+- id: skill                                    # 注册表，已启用
+  name: '@deepseek-ai/dsh-skill'
+
+- id: skill-filesystem                         # 文件系统 provider
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  disabled: true                               # ← 默认关闭的只是这一行
+
+- id: tool-skill                               # 模型侧的 skill 目录 + 加载工具
+  name: '@deepseek-ai/dsh-tool-skill'
+  disabled: true
+```
+
+而且格式与 pi **完全兼容**：目录 bundle 就是 `<name>/SKILL.md`，平铺形式是
+`<name>.md`，解析 YAML frontmatter 取 `name` / `description`。工作台现有的 10 个技能
+一个都不用改。
+
+### 部署脚本：默认开启技能层
+
+`generate-configs.py` / `generate-configs.ps1` 新增 `--dsh-skills {all,none}`（默认 `all`），
+在 `cordis.generated.yml` 末尾追加：
+
+```yaml
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+  disabled: false
+  config:
+    customSkillDirs:
+      - '<repo>/Tool/skill'
+      - '<repo>/Tool/skill/safe-skills'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+  disabled: false
+```
+
+两个根正好覆盖 10 个技能（每个根的**直接子目录**各贡献 5 个）。实测合成结果正确，
+`customSkillDirs` 两行都落到位。
+
+`install.ps1 -DshSkills` / `install.sh --no-dsh-skills` 可整层关闭 —— 代价是 10 个技能的
+`name + description` 会进入每个会话的上下文，有人可能不想付这个税。
+
+> **限制**：`customSkillDirs` 是「扫该目录下所有直接子目录」，**无法只挑其中几个**。
+> 要少挂只能关整层，或在仓库外自建一个只含所需技能的根。这一点写进了文档，
+> 免得下次又有人以为可以按技能粒度裁剪。
+
+### 一致性：两个生成器逐字节相同
+
+PS 与 Python 两个生成器的输出必须字节一致（`test_config_parity.py` 会验）。
+这次踩了两个坑：
+
+1. PS here-string 的尾部换行行为与 Python 三引号不同，直接拼接会多/少一个换行。
+   改成显式契约：基座 `TrimEnd()` + 两个换行 + 技能块 `TrimEnd()`。
+2. 注释里一处写 `--dsh-skills`、一处写 `-DshSkills`，属于「有意区分平台」但会让字节比对失败。
+   改成平台中性的表述，两处共用同一句话。
+
+### `verify-dsh.py` 新增技能层（85% → 100%）
+
+评分从 5 组重排为 6 组，权重仍合计 100：
+
+| 组 | 旧 | 新 |
+| :--- | :---: | :---: |
+| 配置层 | 25 | 20 |
+| MCP 可用性 | 30 | 25 |
+| **技能层** | — | **15** |
+| 仓库资产 | 20 | 15 |
+| 指令层 | 15 | 15 |
+| 运行时 | 10 | 10 |
+
+新增三项：F1 `skill-filesystem` 已启用（5）、F2 `tool-skill` 已启用（4）、
+F3 `customSkillDirs` 覆盖两个技能根（6，同时报告实际可发现的技能数）。
+
+**没开技能层的部署现在会得 85%，这是正确结果，不是故障。** 文档里写明了这一点，
+免得把「还没部署」误读成「部署坏了」。
+
+### 文档
+
+- `MANUAL/DSH-VERIFICATION.md`：重写为 6 组 23 项，补技能层章节、85% 的解释、
+  F1–F3 的修复命令，并删掉「skill 按 N/A 处理」的错误口径。
+- `DSH-PROFILE.md`：新增「Skill 图层（默认开启）」小节，含三种控制方式与代价说明。
+
+
+## [1.12.0] - 2026-11-08
+
+### 新增：DSH 部署完整度校验（含 100 分制评分）
+
+需求是「部署到 DSH 之后，我要知道完整率是多少、缺了什么」。已有的 `verify.ps1`
+回答不了这个问题 —— 它检查的是**工作台自身**完整不完整，不看 DSH 挂没挂上。
+
+新增两个工具：
+
+| 文件 | 作用 |
+| --- | --- |
+| `MANUAL/DSH-VERIFICATION.md` | 校验基准文档：5 组 22 项、分值、判据、采集命令、常见缺项与修复 |
+| `setup/verify-dsh.py` | 自动跑完整张表，输出完整率百分比 + 缺失清单 |
+
+**分母是「DSH 上应该有什么」，不是「Pi 上有什么」。**
+
+这一点很关键：DSH 没有 skill 加载器，10 个 skill 按 N/A 处理、不计入分母。
+若拿 pi 的 135 工具 / 10 skill 当基线，任何 DSH 部署都会被算成「缺了 70%」，
+那是错误的结论。
+
+### 评分结构（满分 100）
+
+| 组 | 分值 | 内容 |
+| :--- | :---: | :--- |
+| 配置层 | 25 | 标记块、两个 serverName、**toolCallTimeoutMs ≥ 300000**、cwd 指向仓库根、failOnStartupError |
+| MCP 可用性 | 30 | 按合成配置**真启动**两个服务，`initialize` + `tools/list`（seep 38 / js-reverse 24） |
+| 仓库资产 | 20 | 内置工具箱 5 件、KB ≥ 294 篇、案例 ≥ 14、手册 ≥ 7、技能源 10 |
+| 指令层 | 15 | 根 `AGENTS.md` 存在 + 与源一致 + `Tool/prompts/SYSTEM.md` 在位 |
+| 运行时 | 10 | Python 能 `import mcp`、Node 可用 |
+
+两组必须查、且容易被忽略的：
+
+- **A4 `toolCallTimeoutMs`** —— DSH 默认 60000（60 秒），jadx 全量反编译 / HLS 分片解密 /
+  Flutter AOT 都会跑几分钟。不设就会被按超时杀掉，表现为「工具调用莫名中断」，极难排查。
+- **A5 `cwd`** —— `seep_mcp_server.py` 用相对路径找内置工具，`cwd` 错了会报一堆 MISSING，
+  但文件其实都在。
+
+### 新增：`setup/probe-mcp.py`
+
+通用的 MCP 逐个实探工具 —— 读任意 `mcp.json`，对每个 stdio 服务做一次真实的
+`initialize` → `tools/list` 握手，报出工具数量与名字。用来核对
+「配置里写了」和「真的能用」的差别，也用来对比 pi / DSH 两边到底差哪几个工具。
+
+```
+playwright     [OK]   25 个工具
+seep           [OK]   38 个工具
+js-reverse     [OK]   24 个工具
+ida            [OK]   48 个工具
+合计: 135 个工具 / 4 个服务
+```
+
+### 本机实测
+
+```
+完整率  ████████████████████████████████████████  100.0%   (100 / 100 分)
+```
+
+负向验证：`--profile nosuch` → 配置层与 MCP 组全部 FAIL，完整率降到 45%，
+说明分母与判据是真的在起作用，不是恒返回 100%。
+
+### 文档也讲清了「完整率」的边界
+
+100% 只说明配置与资产就位，**不说明模型会遵守 `lab：` 闸门**。
+后者是指令层的事，文档给了抽验方法：开一个 DSH 会话，**不发 `lab：`** 直接问
+「这个 APK 是怎么校验会员的？」，看它是否只讲原理而不动手。
+
+
+## [1.11.2] - 2026-11-08
+
+### 删除同名的 `ida-reverse` 简版（一份名字只留一份实现）
+
+盘点 pi 已部署内容时发现的缺陷：仓库里有两个 skill 都叫 `ida-reverse`。
+
+| 位置 | 内容 | 结局 |
+|---|---|---|
+| `Tool/skill/ida-reverse/` | 4.2 KB，1 个文件，简版 | **永远不生效** |
+| `Tool/skill/safe-skills/ida-reverse/` | 12.6 KB + `scripts/`，3 个文件，完整版 | 安装时覆盖前者 |
+
+`install-pi.ps1` 按目录字母序复制，`safe-skills` 排在 `ida-reverse` 之后，所以顶层那份
+每次安装都会被静默覆盖 —— 仓库里留着一段永远不会被用到的配置，而「11 个技能」
+这个数字其实只有 10 个唯一名字。
+
+已删除顶层那份，保留完整的 `safe-skills` 版本（含 `start.ps1` / `open.ps1`）。
+本机 `~/.pi/agent/skills/ida-reverse/` 与 `safe-skills` 版本逐字节一致，无需重装。
+
+### 连带订正
+
+- `verify.ps1` / `verify.sh` 的 ida-reverse 检查改为指向 `safe-skills/ida-reverse`
+  （原来指向已删的顶层路径，删完直接报红）。
+- `Tool/prompts/SYSTEM.md` 的路由表、`Tool/docs/PROVENANCE.md` 的溯源表同步改路径，
+  PROVENANCE 里 ida-reverse 由「1 文件 / 4 KB」订正为「3 文件 / 13 KB」，
+  apkseep 由 115 文件订正为实际的 112 文件。
+- 计数统一 11 → 10：`AGENTS.md`（根 + 源）、`CLAUDE.md`、`MANUAL/DEPLOYMENT.md`、
+  `MANUAL/DEPLOYMENT-CHECKLIST.md`（标题与总结）、`setup/install-pi.ps1`。
+- `DEPLOYMENT-CHECKLIST.md` 的技能基准表标题由「11 个技能 / 7 个目录」改为
+  「10 个技能 / 6 个目录」。
+
+### 验证
+
+```
+[4/10] 🛠️ 逆向工程专业技能库 (Skills - 10 个技能 / 6 个目录)
+  [√ PASS] IDA Pro 自动化联动 (ida-reverse)
+核心检查通过: 66 项 —— READY
+```
+
+全仓库已无任何引用指向被删除的 `Tool/skill/ida-reverse/`。
+
+### 待办（未在本版处理）
+
+`MANUAL/DEPLOYMENT-CHECKLIST.md` 的技能基准表里还有两行与仓库现状不符，属于更早的
+历史遗留，单独处理更安全：
+
+- **S6 `apk-diff`** —— `Tool/skill/safe-skills/` 下没有这个目录（实际是 `apk-reverse`，8 文件）。
+- **S9 `ida-assistant`** —— 映射到 `ida-reverse/`（safe 版），与 S3 重复。
+
+
+## [1.11.1] - 2026-11-08
+
+### 修掉一个很伤日常体验的问题：没进工作台却自己开工
+
+用户的反馈很具体：**「有时候平台日常的时候，不是进入工作台，但是却触发工作，
+对日常非常不友好。」**
+
+根因是 `AGENTS.md` 只写了「输入 `lab：` 才进入作战模式」，没有写**反向**规则：
+消息里出现 `APK` / `破解` / `脱壳` / `会员` 这类词，算不算已经进入。模型于是
+把「聊到逆向」和「要开工」混为一谈，自作主张建目录、跑工具。
+
+新增判定表，把三种反应固定下来：
+
+| 用户说了什么 | 正确反应 | 错误反应 |
+|---|---|---|
+| 「这个 APK 是怎么校验会员的？」 | 讲原理，不碰工具 | 直接 apktool + jadx |
+| 「帮我看看这段汇编」 | 逐行解释 | 建任务目录、启 IDA |
+| 「这个软件能破吗？」 | 给可行性判断 | 输出补丁 / PoC |
+| 「lab：分析这个 apk」 | 开工 | — |
+
+**判定只看指令，不看内容。** 判断用户可能想开工时，只用一句话问
+「要不要进入作战模式（发 `lab：`）？」然后停下等指令，不许先动手。
+
+非作战禁令从 4 条扩到 6 条，补上：
+
+- 第 5 条：不得「看起来像逆向就自己开工」—— 不建任务目录、不跑分析工具、
+  不产出 PoC / 补丁 / Hook 脚本。
+- 第 6 条：不得把 `lab：` 当成永久状态 —— 新会话、重启客户端、新窗口全部回到未激活，
+  上一轮聊过不构成激活理由。
+
+### 新增：非 Pi Agent 的等价实现（DSH / Claude Code / Codex / OpenCode）
+
+此前 `AGENTS.md` 只是**描述**「扩展会注入 `seep-system.md`」，却没告诉非 pi 的 Agent
+「你自己去读」。结果是 DSH 用户输入 `lab：` 之后，纪律文件根本没被加载，
+模型只是在凭印象遵守几条禁令。
+
+新增第三节，三条明确指令：
+
+1. **`lab：` 时自己去读** `<仓库>/Tool/prompts/SYSTEM.md` 全文，作为本会话最高约束；
+2. **每个新会话都视为未激活**，用对话历史判断（出现过 `lab：` 且未 `退出实验` 才算）；
+3. **未激活时 `seep_*` 工具一律不调**，包括 `mcp__seep__seep_pe_triage` 这类已注册的工具。
+
+并说明这是**指令层**等价，不如 pi 的代码层强制可靠 —— 所以越界时必须立即停下告知用户。
+
+第五节补了纪律文件的对照表：Pi 用 `~/.pi/agent/seep-system.md`（扩展自动注入），
+其它 Agent 用 `<仓库>/Tool/prompts/SYSTEM.md`（自己读），两者同源。
+
+### 文档版本订正
+
+文档里一直写着 Radare2 `v6.2.2` 和 Apktool `v3.0.3`，但仓库自带的实际是
+**r2 5.9.8 / apktool 2.11.0**（用新加的 `resolve-tools -Verify` 一跑就露馅）。
+已订正 `AGENTS.md`、`MANUAL/DEPLOYMENT-CHECKLIST.md`、`README.md`、`README.zh.md`。
+顺带把「Skills - 10 项」改成 11 项。
+
+`tool-registry.json` 里 radare2 的 bundled 顺序也改了：优先 `radare2.exe` 真二进制，
+`r2.bat` 垫片放最后 —— 垫片无法携带多行参数（WebToolbox 那边踩过同一个坑）。
+
+### 解析链顺序修正：`bundled` 提到 `cache` 之前
+
+原默认链是 `env → cache → bundled → path → candidates`。改 bundled 顺序后复测发现
+radare2 仍从 **cache** 里取旧的 `r2.bat` —— 缓存把更确定的来源盖掉了。
+
+`bundled` 只是一次文件存在性检查（开销可忽略），结果又是确定的；`cache` 存在的意义
+是省掉「PATH 扫描 / 候选表遍历」这类昂贵探测，不该优先于确定来源。默认链已改为
+`env → bundled → cache → path → candidates`（两套求值器同步）。
+
+### 验证
+
+- 根 `AGENTS.md` 与 `Tool/prompts/AGENTS.md` 重新同步（`generate-configs.py` 幂等）；
+- `verify.ps1` 66 项 READY，其中「项目根 AGENTS.md 与源同步」为 PASS；
+- 20 个外部工具 `-Verify` 实跑全部 READY。
+
+
+## [1.11.0] - 2026-11-08
+
+### 背景：路径写死在检查脚本里，换个用户就误报
+
+用户提出的问题很尖锐：**「我本地工具在 D:\Tool，别人不一定，或者根本没下载。
+到时候你该怎么检查，怎么判断在哪里以及是否已经成功启动？」**
+
+审计后发现两类真实缺陷：
+
+1. `verify.ps1` 的 IDA 检查写死了 4 个候选路径，装在 `E:\Rev\IDA` 或绿色版的用户
+   会看到「IDA 缺失」。而 `verify.sh` 更干脆 —— 那一项直接写 `false` 的占位。
+2. 更严重的是**所有外部工具检查都只看「文件在不在」**。文件在位但启动报错
+   （缺 DLL、版本不符、`ida_pro_mcp` 没装）仍然报 READY。除了 `seep` MCP 自己
+   有真正的 stdio 握手测试，其余没有一个被真正启动验证过。
+
+### 新增：`setup/tool-registry.json` —— 路径规则只有一份
+
+20 个外部工具的定位规则声明在 JSON 里，新增工具只改这个文件，不改代码：
+
+```json
+"python": { "kind": "core", "env": "SEEP_PYTHON",
+            "chain": ["env","candidates","bundled","path","cache"],
+            "verify": { "kind": "python-import", "arg": "mcp" } }
+```
+
+解析链（逐层下降，记录来源）：
+
+```
+env（SEEP_* 环境变量）→ cache（~/.seep/tools.json）→ bundled（仓库自带）
+→ path（系统 PATH）→ candidates（常见安装位）
+```
+
+`chain` 可按工具覆盖：`python` 就靠它优先找工作台自己的 venv，而不是 PATH 上
+那个可能没装 `mcp` 库的垫片。
+
+### 新增：`setup/resolve-tools.ps1` 与 `Tool/mcp/tool_resolver.py`
+
+两个求值器，一套规则。PowerShell 版给 Windows（Python 坏掉时也能跑），
+纯标准库 Python 版给 Unix 和 MCP 侧。
+
+```powershell
+powershell -File setup\resolve-tools.ps1 -Verify        # 解析 + 实跑
+python Tool/mcp/tool_resolver.py --verify                 # 全平台
+python Tool/mcp/tool_resolver.py --state ida              # 给 shell 脚本用
+```
+
+四态判定：
+
+| 状态 | 条件 | 阻断 |
+|---|---|---|
+| `READY` | 找到 **且实跑返回成功** | 否 |
+| `DEGRADED` | 找到但跑不起来 | 否，给出原因与修复命令 |
+| `OPTIONAL` | 没找到，属于可选能力 | 否 |
+| `MISSING` | 没找到，属于核心能力 | **是**（退出码 1） |
+
+### `seep_status` 接入同一份真相
+
+`seep_status()` 新增 `external_tools` 段，20 个工具的路径、来源层、四态、修复命令
+一目了然。新增可选参数 `verify`：
+
+```python
+seep_status()              # 只解析，毫秒级
+seep_status(verify=True)   # 逐个实跑，区分「文件存在」和「真的能启动」
+```
+
+### `SEEP_IDA_ROOT` 支持
+
+`install-ida.ps1` 在 `-IdaRoot` 之后、候选表之前读 `SEEP_IDA_ROOT`；
+`mcp-merge.py --ida-root` 缺省值也改成读这个环境变量。IDA 装在非常规位置的用户
+设一次就够，不用每次传参。
+
+### 修掉的三个真 bug
+
+1. **`cmd.exe` 引号**：`.bat` / `.cmd` 必须 `/s /c ""path" "args""`（首尾各只加一个引号）。
+   写错会让带空格路径的所有工具报「不是内部或外部命令」。
+   Python 侧还必须传**单个字符串** —— 传 list 会被 `list2cmdline` 再转义一层。
+2. **`verify.sh` 的 Windows 路径**：`SEEP_PYTHON=D:\Tool\...\python.exe` 在 Git Bash 里
+   既过不了 `[ -x ]` 也不能直接执行，导致 stdio 冒烟、DSH 检查、`tool_state`
+   全部静默误报。新增 `py_run()` 统一用 `cygpath` 换算。
+3. **GBK 解码崩溃**：`subprocess.run(text=True)` 在 Windows 用 GBK 解码，遇到 UTF-8
+   输出会在 reader 线程抛 `UnicodeDecodeError`，整个调用变成空结果。改为显式
+   `encoding="utf-8", errors="replace"`，并剥掉 ANSI 颜色码。
+
+### 测试
+
+- `setup/test_tool_resolver_parity.py`（新）：两个求值器对同一注册表必须给出
+  完全一致的 `(id, state)` 集合 —— 防止将来改漏一边。
+- 四态反向验证：仓库根指向空目录 → `MISSING` + 退出码 1；
+  `SEEP_IDA_ROOT` 写错 → 保留警告并继续沿链解析；
+  幻影可选工具 → `OPTIONAL` + 退出码 0；
+  `SEEP_PYTHON` 指向非解释器 → `DEGRADED` 并给出启动失败原因。
+- 本机 20 个工具实跑全部 `READY`。
+
+### 体检项
+
+`verify.ps1` 64 → **66 项**（新增「外部工具注册表可解析」「核心运行时工具实际可启动」，
+并把 IDA 检查改为走注册表）。`verify.sh` 新增注册表检查，IDA 项从写死 `false`
+改为真实解析，并通过 `py_run()` 修好了 Windows 路径导致的静默误报。
+
+
 ## [1.10.2] - 2026-11-08
 
 ### 新增：DSH 隔离开箱部署（不碰 Pi Agent）
