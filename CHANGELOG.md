@@ -12,6 +12,496 @@
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-11-08
+
+### 新增：DSH 隔离开箱部署（不碰 Pi Agent）
+
+需求很具体：在**单独一个文件夹**里部署 DSH，并确认两件事 —— 部署是否完整、
+会不会污染 Pi Agent 的 skill 与 MCP。
+
+新增 `setup/dsh-isolated-setup.ps1`，一条命令在 `<LabDir>\.dsh` 建立独立 DSH_HOME：
+
+```powershell
+powershell -File setup\dsh-isolated-setup.ps1
+```
+
+它**只做 DSH 相关的事**：自举 profile → 生成配置 → 把 seep 补丁挂载进隔离 DSH_HOME →
+端到端验证 → 前后快照比对。**不**跑 `install-pi.ps1`（不动 `~/.pi/agent` 的 skill 与 mcp.json），
+**不**跑 `install-ida.ps1`（不动 mcp.json 的 ida 条目），也不改任何全局依赖。
+
+### 新增：`setup/pi-agent-snapshot.py` —— 用指纹证明「没被污染」
+
+```bash
+python setup/pi-agent-snapshot.py snapshot before.json
+python setup/pi-agent-snapshot.py diff before.json after.json    # 有漂移则 rc=1
+```
+
+只覆盖会被部署流程触碰的面（`mcp.json` / `settings.json` / `AGENTS.md` / `seep-system.md` /
+`skills/` / `extensions/`），**不扫** `project/`、`logs/` 这类作业目录。
+`install.ps1` / `update.ps1` 之后想自证「只动了该动的」，用它就行。
+
+### 四个脚本支持 `SEEP_AGENT_DIR`
+
+`install.ps1` / `install-pi.ps1` / `install-ida.ps1` / `verify.ps1` 此前把 agent 目录写死为
+`%USERPROFILE%\.pi\agent`。现在可用 `SEEP_AGENT_DIR` 覆盖（与 `setup/install.sh` 早已支持的
+`SEEP_AGENT_DIR` 对齐），隔离部署与沙盒测试都因此可行。
+
+### 修复：DSH 自举出的空 patch 文件导致挂载后解析失败
+
+DSH 首次生成 profile 时，`cordis.patch.yml` 的内容是「注释头 + 一行 `[]`」。
+`setup/dsh-merge.py` 若直接在后面追加块序列，文档就变成 `[]\n- insert:` ——
+YAML 直接报 `end of the stream or a document separator is expected`，
+隔离部署会在「挂载成功」之后才发现 DSH 起不来。
+
+现在合并前会检测「全文除注释外只剩 `[]`」的情况并先移除该字面量；
+有真实条目时不动。实测：全新 DSH_HOME 上自举 → 挂载 → `dsh --dump-config` 通过。
+
+### 隔离部署的完整性实测（本机）
+
+```
+隔离 DSH_HOME : <lab>\.dsh   （默认 <桌面>\dsh-lab\.dsh）
+自举 profile  : web（198 条合成配置，含 seep-mcp / seep-js-reverse-mcp）
+端到端        : tools/list 38 个工具，含 seep_pe_triage
+pi agent 漂移 : 新增 0 / 删除 0 / 变更 0  -> 完全未改动
+```
+
+隔离环境相对你的真实 `~/.dsh` **只少登录态**（`.credentials.yaml` / `.anonymous-user-id`），
+`profiles/` 是独立的，`sessions/` 与 `storages/` 首次使用时自动创建。
+所以首次启动需要在 DSH 里重新登录（或自行复制凭据文件，脚本会在结尾提示，不自动复制）。
+
+
+## [1.10.1] - 2026-11-08
+
+### 修复（会让长任务全部失败）：DSH 补丁没设 `toolCallTimeoutMs`
+
+按 DSH 0.2.2 的 `@deepseek-ai/dsh-mcp-client` 类型定义，单次 `tools/call` 的默认超时是
+**60 秒**。而本工作台的长任务远超这个量级 —— HLS 取证（ffmpeg 解密分片）、Flutter AOT 分析、
+jadx 全量反编译都要跑几分钟。之前的 `cordis.generated.yml` 没写这个字段，于是在 DSH 里
+这些工具会跑到一半被 DSH 掐断，而日志里看不出是 DSH 干的。
+
+现在生成器显式写入：`seep` 为 `900000`（15 分钟），`js-reverse` 为 `600000`。
+
+### 修复：DSH 挂载以前只能手工粘贴
+
+`cordis.generated.yml` 只适合 `dsh web --patch` 临时挂载；要长期生效必须人工把条目合并进
+`cordis.patch.yml` —— 而那个文件里通常已有用户的模型/provider/插件配置，手改风险高。
+
+新增 `setup/dsh-merge.py`：
+
+| 条目 | 行为 |
+| :--- | :--- |
+| 你自己的既有配置 | **一律原样保留**（实测 7 条 `llm-pi-ai` / `agent-default-model` 等全部留下） |
+| seep 补丁块 | 用注释标记包裹，已存在则**整块替换**，不存在则追加 |
+| `command: python` | 落盘时替换为**真的能 `import mcp`** 的解释器绝对路径 |
+| 写盘 | 先备份到 `backup-<时间戳>/`；内容一致则不写 |
+
+`cordis.patch.yml` 顶层本身是补丁条目数组，而生成物也是数组，因此追加即合法合并 ——
+不需要 YAML 解析器（Python 标准库没有），也不会碰用户条目。
+支持 `--profile` / `--global` / `--check` / `--dry-run` / `--remove`。
+
+`install.ps1` / `install.sh` 自动检测 `$DSH_HOME`（默认 `~/.dsh`）：存在则自动挂载，
+不存在则跳过；可 `-SkipDsh` / `--skip-dsh` 关闭。
+
+### 新增：Cordis 补丁多挂一个 `js-reverse`
+
+与 `.mcp.json`（Claude Code）对齐，DSH 现在同时挂 `seep` 与 `js-reverse` 两条服务。
+
+### 新增：项目根 `AGENTS.md`
+
+`dsh-agent-instructions` 从项目根读 `AGENTS.md` / `CLAUDE.md` 作为指令来源。此前 DSH 用户
+需要手工 `cp Tool/prompts/AGENTS.md ./AGENTS.md`。现在 `setup/generate-configs`（`.ps1` 与
+`.py` 两版，输出逐字节一致）会生成一份同内容副本到项目根，`verify` 会检查漂移。
+
+### 新增：DSH 端到端校验 `setup/test_dsh_mount.py`
+
+不只看 YAML 长得对不对，而是：
+
+1. 让 DSH 自己合成配置树（`dsh --profile web --dump-config`）；
+2. 从合成结果里取出 `serverName: seep` 的 `command` / `args` / `cwd`；
+3. 用这份**合成后的**配置真的 spawn 一次，走 `initialize` → `tools/list`；
+4. 断言工具数 ≥30 且包含 `seep_pe_triage`。
+
+本机实测：**38 个工具**。`dsh` 未安装时 SKIP 而非失败。
+
+> 顺带记一个坑：Windows 上的 `dsh` 是 `.CMD` 垫片，`subprocess` 不做 PATHEXT 查找，
+> 直接传 `"dsh"` 会 `WinError 2`，必须先用 `shutil.which` 解析成完整路径。
+
+### 体检新增三项
+
+`verify.ps1` / `verify.sh` 现在检查：项目根 `AGENTS.md` 与源同步、Cordis 生成物结构合法
+（`- insert:` + `serverName: seep` + `toolCallTimeoutMs`）、DSH 已安装时是否已挂载
+（未挂载判 🟡 DEGRADED，不阻塞）。核心检查项 61 → **63**。
+
+### 文档
+
+`DSH-PROFILE.md` 按官方类型定义重写：完整字段表（含默认值）、超时说明、三种挂载方式、
+工具命名形态 `mcp__seep__seep_pe_triage`、校验命令、与其它 Agent 的对照。
+`MANUAL/DEPLOYMENT.md` 的 DSH 章节同步重写。
+
+一并**删除 README 里一条不实的宣称**：此前写着 DSH 有 `start-dsh.ps1` / `stop-dsh.ps1`
+（"4 秒冷启动 / 僵尸清理 / Token URL 提取"），但这两个脚本在仓库里并不存在。
+改为如实描述现有的自动挂载与端到端校验。
+
+### 验证记录（本机实跑，DSH 0.2.2-rc.1）
+
+```
+python setup/dsh-merge.py --root .
+  target : ~/.dsh/profiles/web/cordis.patch.yml
+  python : <工作台 venv 解释器绝对路径>
+  mode   : 追加（首次挂载）
+  backup : ~/.dsh/profiles/web/backup-<时间戳>/cordis.patch.yml
+  result : 已写入
+
+node -e 用 DSH 自带 yaml 库解析合并结果：
+  顶层条目: 8 -> ui-settings-general, agent-default-model, permission,
+              session-log-deepseek, agent-preset-registry, llm-pi-ai,
+              llm-deepseek, (insert)
+  insert  : seep-mcp/seep, seep-js-reverse-mcp/js-reverse
+  timeout : 900000, 600000
+
+dsh --profile web --dump-config  -> loader 接受补丁，seep 条目正确合成
+python setup/test_dsh_mount.py   -> 38 个工具，含 seep_pe_triage
+```
+
+`clean-format.py` 零问题；`test_config_parity.py` 四份产物字节一致（新增 `AGENTS.md`）；
+`verify.ps1` 63 项全绿。
+
+
+## [1.10.0] - 2026-11-08
+
+### 修复（数据丢失级）：Unix 部署会整体覆盖 `mcp.json`，且没有备份
+
+`setup/install.sh` 原来用一行 `sed "s|<SEEP_ROOT>|$ROOT|g" template > mcp.json`：
+
+- **整体覆盖**，用户自己加的 MCP 服务（x64dbg / 自建网关）被直接抹掉；
+- **零备份** —— 而 `setup/update.sh` 头部一直写着"覆盖前自动备份到 `backup-<时间戳>/`"，
+  那句承诺此前**没有任何代码实现**；
+- 模板里 `"command": "python"` 是未经校验的解释器名，路径还是 Windows 反斜杠，
+  在 Unix 上替换出来就是坏路径。
+
+现在改走 `setup/mcp-merge.py`（纯标准库，跨平台）：
+
+| 条目 | 行为 |
+| :--- | :--- |
+| `seep` / `js-reverse` | 总是 upsert（工作台托管） |
+| `playwright` | 仅当不存在时新增；已存在则保留用户 token |
+| `ida` | 仅在显式给 `--ida-root` 时接管；否则保留、不新增坏条目 |
+| 其它任意用户条目 | **一律原样保留** |
+
+写盘前备份到 `<agent>/backup-<时间戳>/`；输入容忍 UTF-8 BOM；输出 UTF-8 无 BOM + LF；
+内容一致时不写盘。契约由 `setup/test_mcp_merge.py` 守住（11 条断言，含「损坏 JSON 默认拒绝写盘」）。
+
+### 新增：Unix 外部能力层
+
+`setup/install-capabilities.sh`，与 Windows 的 `install-capabilities.ps1` 对齐：
+
+| 组件 | Unix 行为 |
+| :--- | :--- |
+| `web` | ffmpeg/ffprobe，按 brew → apt → dnf → pacman 顺序安装；都失败只警告 |
+| `android` | `~/.seep/android/frida-env` venv + pip 安装 frida / objection / frida-dexdump / APKiD |
+| `scanners` | nuclei / ffuf（brew 优先，其余给手动指引） |
+| `aotopsy` | 显式跳过并说明原因（Windows PE 单文件） |
+
+`install.sh` 重写为 7 步（备份+安全合并、generate-configs、可选能力包、技能先删后拷）；
+`update.sh` 新增 `--with-tools` / `--check-capabilities` / `--skip-capabilities`，
+报告改为动态统计并新增能力看板。
+
+### 新增：跨平台配置生成
+
+`setup/generate-configs.py`，与 `generate-configs.ps1` 输出**逐字节一致**（由
+`setup/test_config_parity.py` 对跑两份生成器后逐字节比对守住）。两份生成器都支持
+`-Root` / `--root`，`.mcp.json` 用相对路径保持可移植。
+
+### 行为变更：平台边界如实上报
+
+- `ANDROID_TOOLBOX_DIR` / `WEB_TOOLBOX_DIR` 默认根目录按平台区分：
+  Windows 仍为 `D:\Tool\Android` / `D:\Tool\Web`，Unix 改为 `~/.seep/android` / `~/.seep/web`。
+  此前 Unix 上会报出一个根本不存在的 `D:\Tool\...` 路径。
+- `seep_status()` 新增 `platform_boundaries`：如实标注 `web_forensics` 与 `flutter_aot`
+  在当前平台是 `ready` 还是 `windows-only`。
+- `seep_web_toolbox` 新增 `platform_supported` / `required_runtime`，不再只报「缺 ffmpeg」
+  让人误以为装上 ffmpeg 就能跑。
+- `_find_powershell()` 失败时给出可执行指引（macOS/Linux 的 pwsh 安装命令）。
+- 删除 `APKTOOL_BAT` 死常量：apktool 一律走 `java -jar`，该常量在 Unix 上恒指向不存在文件。
+
+### `verify.sh` 补齐到与 `verify.ps1` 等价
+
+新增：webseep 完整性、stdio 冒烟（issue #13 回归）、动态工具数、`[6/10]` 能力可用性小节
+（`aotopsy` 在 Unix 固定判为「不适用」不计失败）、隐私扫描非 git 分支排除安装生成物
+（`opencode.jsonc` / `cordis.generated.yml` / `relay-config.json` / `tool-index.*`）——
+后者与 `.ps1` 同源的误报，ZIP 部署的 Unix 用户此前每次体检都会踩到。
+
+一并修正两处既有缺陷：`Radare2` 检查把 `command -v x &>/dev/null || test -f ...` 直接当参数传，
+末尾重定向把汇报行整个吞掉（该行此前完全不显示）；Python 解析改为「真的能执行」的探测
+（`SEEP_PYTHON` → `python3`/`python` → `py -3` → `~/.pi/agent/seep-venv`），解释器不可用时
+依赖它的检查项 SKIP 而不是报红。
+
+`verify.ps1` / `verify.sh` 小节编号统一为 `[N/10]`（此前插了 `[5b]` 但总数仍写 9）。
+
+### 清理
+
+- 删除工作台旁残留的 v1.6.0 旧树（661 MB）。它自带一份 `Tool/mcp/seep_mcp_server.py`（27 工具）
+  与指向它的 `.mcp.json`，是"改对了仓库、跑的还是旧代码"这类问题的直接来源。
+
+### 文档
+
+`CROSS-PLATFORM.md` 把「CTF Web 攻防 🟢 原生最佳环境（macOS/Linux）」改成如实的平台矩阵，
+并新增「外部能力包（Unix）」章节；`DEPLOYMENT.md` 能力表补 Unix 列与新参数；
+`DEPLOYMENT-CHECKLIST.md` 新增「3b. 外部能力包」基准表；README 双版补平台边界说明；
+`windows-deep.md` 的 KB 计数 289 → 294。
+
+### 验证记录
+
+**Windows（实跑）**：`verify.ps1 -Detailed` 全绿；干净树全新安装与 v1.8.2 → 1.10.0 升级
+两条路径复跑，0 条 `[!!]`、0 条 stash；`test_stdio_smoke.py` 38 工具；
+`test_mcp_merge.py` 11/11；`test_config_parity.py` 三份产物字节一致。
+
+**Unix（静态 + Git Bash 模拟）**：全部 `.sh` 过 `bash -n`；沙盒 `HOME` + `SEEP_AGENT_DIR`
+下跑 `install.sh`，确认备份生成、用户自定义条目（`x64dbg`）保留、`mcp.json` 为 LF；
+`verify.sh` 跑完后 55 项通过 / 0 项失败 / 6 项关注，结论 READY。
+
+> **如实声明**：本机只有 Windows。Unix 侧是在 Git Bash 下验证逻辑与路径处理，
+> **不等于**在真 Linux/macOS 上验证过；仍需一块真实 Unix 机器复核。
+
+
+### 项目D 案例演进：build 18 零改动吸收（工具 v1.6.2）
+
+**新增素材**：项目D（客户端授权校验链）扩展至**七个版本**，
+新增 6.43 build 18（6.43.18.3）。
+
+**核心发现 —— 签名表零字节改动即完成适配**：
+
+- build 18 的结构变化是**方向翻转**的重排：`.text` +24,576 B，
+  段内代码位移 `−0x320` ~ `−0x9A0`（**全负**，与 build 16 的 `+0x1D0` ~ `+0x5E0` 相反），
+  数据段则 `+0x6600`。
+- 现有六版本签名表在 build 18 上 **16/16 精确命中，汉明距离 0**，
+  重生成流水线完全未触发。这是本项目第一次以**零字节表改动**吸收新版本。
+- 直接收益来自 v1.6.1 的「单条签名 48 字节上限」决策：build 18 的位移幅度
+  （≈2.5 KB）大于 build 16（≈1.5 KB），表却原封不动存活。
+
+**新增文档与工具**：
+
+| 文件 | 变更 |
+|---|---|
+| `docs/reverse-engineering.md` | 新增 **§11**（结构差分 / 零命中定位 / 48 B 上限权衡 / 语义复核 / 字符串差分排除新对抗 / 教训 7 条） |
+| `docs/algorithm.md` | 版本指纹表与 16 位点表扩展为**七版本**；位移分布新增「方向翻转」行 |
+| `README.md` | 新增 v1.6.2 演进章节（三假设排除矩阵 + 签名长度三方案对照） |
+| `tools/config_7v.example.json` | **新增**，七版本配置示例（含 b18.3 全 16 位点偏移） |
+| `tools/README.md` | 新增「零级预检」小节：精确命中时**不要**跑重生成，否则会提前透支漂移余量 |
+
+**方法论沉淀（可直接复用于其他目标）**：
+
+1. **先做精确命中预检** —— 汉明搜索是兜底不是首选，跳过它可省掉整条重生成链路；
+2. **位移方向会翻转** —— 版本间 delta 无单调性，禁止趋势外推；
+3. **签名长度上限是投资** —— 一次设对，后续版本可零改动吸收；
+4. **精确命中 ≠ 语义不变** —— 字节一致仍须反汇编复核；
+5. **操作数补丁需换判据** —— 用「包含该偏移的指令」而非「起始于该偏移的指令」；
+6. **字符串差分是廉价的对抗筛查** —— 10 条新增即可排除「新增反篡改」假设；
+7. **零改动 ≠ 零工作** —— 表没改，但定位、语义、取证、回归、真机五道验证一道不能少。
+
+## [1.9.2] - 2026-11-08
+
+### 部署链路重写：把「代码更新」与「能力补齐」拆成两层
+
+**问题**：工作台有三个层次，旧链路只覆盖第一层。
+
+```
+第 3 层  能用吗？   ← 外部依赖：ffmpeg / frida / APKiD / Aotopsy / nuclei / ffuf
+                     ↑ 完全没覆盖
+第 2 层  装上了吗？ ← 技能 / 脚本 / MCP 工具定义
+                     ↑ 只覆盖了一半（技能走目录枚举有，脚本没同步）
+第 1 层  代码新吗？ ← git pull
+                     ↑ 已覆盖
+```
+
+后果就是一句话：**工具在 `tools/list` 里看得见，一调用返回「未部署」。**
+
+### 新增 `setup/install-capabilities.ps1`：外部能力包统一入口
+
+| 组件 | 默认安装 | 成本 |
+|---|:---:|---|
+| `aotopsy`（Flutter AOT 分析） | ✅ | 零网络，从 `Tool/aotopsy` 直接复制 |
+| `web`（ffmpeg + ffprobe） | ✕ | 约 80 MB 下载 |
+| `android`（frida / objection / APKiD） | ✕ | pip + 独立 venv |
+| `scanners`（nuclei / ffuf） | ✕ | 约 40 MB 下载 |
+
+- 纪律：**默认只装零成本件**；要下载/装包的必须显式点名，任何组件失败只警告，绝不中断部署。
+- `-CheckOnly` 只报表不动盘；`-ToolboxRoot` 一次性改根目录；`-Strict` 供 CI 用。
+- 组件安装器不带 `exit`，改为同进程 splatting 调用 —— 顺带修掉了 `-Only a,b` 经 `-File` 传递时
+  被当成单个字符串、触发 `ValidateSet` 失败的问题。
+
+### `install.ps1` / `update.ps1` 接入
+
+- `install.ps1` 新增能力包步骤（`-SkipCapabilities` / `-WithWeb` / `-WithAndroid` / `-WithScanners`）。
+- `update.ps1` 新增 `-WithTools`（顺带补 ffmpeg + frida + APKiD）与
+  `-CheckCapabilities`（**只补能力、不动代码**，网络拉不动代码时用）；结束报告重写：
+  技能数与工具数改为**动态统计**，新增能力看板，并把「必须完全重启会话」写成独立段落
+  （原来混在一段提示里，容易被略过；而 MCP 工具是启动时握手的，不重开就看不到新工具）。
+- `install-pi.ps1`：不再往 `mcp.json` 写裸 `"python"`，改为**探测一个真正 `import mcp` 成功**的解释器
+  并写绝对路径。此前若机器上的 `python` 指向没装 `mcp` 的解释器（系统 Python 3.10 / 商店别名 /
+  conda base），服务端一启动就 ImportError，而体检只表现为「MCP 没连上」，排查成本极高。
+
+### `verify.ps1`：从「文件在不在」到「现在能不能真跑」
+
+- 新增 `[5b] 外部能力包可用性` 小节，逐组判定 Web 取证 / Flutter AOT / Android 动态 / 加固指纹 / 扫描器。
+  缺失归入 🟡 DEGRADED 而非 🔴 MISSING —— 外部程序缺失是正常状态，不该判失败。
+- 新增 `Resolve-VerifyPython`：Python 相关检查统一使用**探测后可执行**的解释器。
+  此前直接调 `python`，若它是商店占位别名或指向已删 venv 的 `.cmd` 垫片，
+  会连带把「语法自洽」「stdio 冒烟」「规则表同步」三项误报为红 —— 一次环境问题伪装成三个功能故障。
+- 隐私走查的非 git 分支补排除「安装时生成的本地配置」（`opencode.jsonc`、`cordis.generated.yml`、
+  `relay-config.json`、`tool-index.*`）。这些文件含本机绝对路径属正常，且已被 `.gitignore` 排除；
+  此前用 ZIP 部署（无 `.git`）的用户每次体检都会误报隐私残留。
+- `install.ps1` 的环境检测改为校验退出码与版本串。此前只看 `Get-Command python` 有没有结果，
+  垫片失效时会打印 `[OK] Python 可用: 系统找不到指定的路径`。
+
+### 验证记录（双路实跑）
+
+**路径 A · 全新安装**（干净目录 + 沙盒 HOME，等价首次 clone）：
+
+```
+解压离线依赖包 → 技能 11 个（含 webseep）→ seep MCP 解释器: D:\Tool\IDA Pro\python311\python.exe
+→ 补齐外部能力包（auto）→ [OK] 全部外部能力已就绪
+→ 体检报告 核心检查通过 61 项 → 🎉 READY
+```
+
+**路径 B · 老用户升级**（克隆到 v1.8.2 `e9b6c9e`，跑的仍是**旧版** `update.ps1`）：
+
+```
+版本已更新: v1.8.2  ->  v1.9.2
+技能 11 个（含 webseep）· MCP 工具定义 38 个 · 新增 setup/install-capabilities.ps1
+补齐外部能力包（auto）→ [OK] 全部外部能力已就绪
+体检报告 核心检查通过 61 项 → 🎉 READY
+[!!] 警告 0 条 · git stash 0 条 · 工作区 0 项改动
+```
+
+**路径 B 二次执行**（此时已是新版 `update.ps1`，验幂等与新报告格式）：
+
+```
+[..] 版本未变化（v1.9.2）—— 将执行一次幂等重同步（补齐可能缺失的组件）
+本次同步: 逆向技能 11 个 · MCP 工具定义 38 个
+外部能力看板: ffmpeg / ffprobe / frida / objection / apkid / aotopsy / adb 全部 [READY]
+体检报告 核心检查通过 61 项 → 🎉 READY
+```
+
+> 双路验证过程中又发现并修掉三个部署缺陷：
+> ① `install-python.ps1` 用裸 `python`，垫片失效时 pip 全线失败，且**把错误文本当成功打印**；
+> ② 验证 pytest 时 `| Select-Object -First 1` 提前终止管线，装好的包被判「不可用」；
+> ③ `generate-configs.ps1` 每次重写内容相同的 `.mcp.json`，mtime 变化让 `git status` 报「已修改」，
+> 于是 `update.ps1` 每次都弹一次「本地改动已 stash」——用户以为自己的文件被动过。
+
+`clean-format.py` 零问题；中继单测 84/84。
+
+### 已部署用户注意
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup\update.ps1 -WithTools
+```
+
+更新后**完全关闭并重开 Agent 会话**。想只补能力不动代码，用 `-CheckCapabilities`。
+
+
+## [1.9.1] - 2026-11-08
+
+### 修复：`seep_pe_*` 等工具在 stdio 模式下无限挂起（issue #13 / PR #14，致谢 @MrUncleXiang）
+
+`_run_cmd()` 用 `subprocess.run()` 派生外部进程时没有重定向 `stdin`，子进程因此继承了
+MCP 服务端自己的 stdin —— 那是一条由客户端（Claude Code / DSH / OpenCode / Pi）持有、
+会话结束前永远不会关闭的 JSON-RPC 管道。
+
+后果：在 stdio 传输下，**Python 子进程**在解释器启动阶段就卡住，脚本业务代码一行都没执行，
+工具表现为「永久挂起」直到客户端超时。r2 / jadx / apktool 这些原生 exe 不受影响 ——
+这正好解释了为什么当时只有 `seep_pe_*` 四条路径出问题（它们经由 `_run_pe_script()` → `_run_cmd()`
+启动 Python 子进程）。
+
+**本机实测复现**（`mcp` 1.30.0 / Python 3.11）：
+
+```
+修复前：  seep_pe_triage -> TIMEOUT (>20s)   seep_pe_aob_scan -> TIMEOUT (>20s)
+修复后：  seep_pe_triage -> OK (5983 chars)  seep_pe_aob_scan -> OK (679 chars)
+```
+
+- **`Tool/mcp/seep_mcp_server.py`**：两处 `subprocess` 调用点补 `stdin=subprocess.DEVNULL`
+  （`_run_cmd()` 与 `_run_web_script()`）。工作台 38 个工具的外部进程调用全部收敛在这两个函数，
+  改一处即全覆盖，对不需要交互输入的工具零副作用。
+- **新增 `Tool/mcp/test_stdio_smoke.py`**（303 行，纯标准库）：两层回归。
+  - 静态层 `--quick`：AST 遍历，要求每个 `subprocess.run/Popen/call/check_*` 调用点显式给出
+    `stdin=`，缺失即报出具体行号。零依赖、毫秒级。
+  - 端到端层：真的以 stdio 拉起服务端，走 `initialize` → `tools/list` → `tools/call`
+    （含一次真实 `seep_pe_triage`）。这是唯一能复现原始故障的层级。
+- **`setup/verify.ps1`**：新增检查项「stdio 子进程不继承 stdin」（跑 `--quick`），
+  核心检查项 54 → **55**。
+- **`setup/install-python.ps1`**：补 `PIP_BREAK_SYSTEM_PACKAGES=1`。uv 托管的解释器与多数
+  Linux 发行版自带 Python 都带 PEP 668 `externally-managed` 标记，裸 `pip install` 会直接
+  以 `error: externally-managed-environment` 退出，导致 `mcp` 装不上、MCP 服务起不来。
+
+### 为什么原有体检发现不了
+
+`verify.ps1` 对 `seep_mcp_server.py` 只做 `ast.parse` 语法自洽检查 —— 漏写 `stdin=` 语法完全合法；
+手动在普通 shell 里跑同一个脚本也只要 0.09 s。只有**以 stdio 服务方式真实调用**才暴露。
+所以这次补的不是"再检查一遍语法"，而是一条端到端调用链 + 一个静态不变量。
+
+### 已部署用户注意
+
+修复只改服务端脚本，**无需重装依赖**：`git pull` 后完全重启 Agent 会话即可。
+若仍遇到挂起，运行 `python Tool/mcp/test_stdio_smoke.py` 可自证当前副本是否已带修复。
+
+
+## [1.9.0] - 2026-11-08
+
+### 新增能力域：Web / 流媒体取证
+
+- **第 11 个技能 `webseep`**（`Tool/skill/webseep/`，17 文件）——Web 源与接口取证方法论：
+  HLS 六类根因判定（防盗链 / key 鉴权 / AES-128 / SAMPLE-AES / DRM / 源失效）、
+  CMS 家族与采集接口指纹、TVBox / CatVod spider 三入口、头变体矩阵重放。
+  素材来源已在 `Tool/skill/webseep/PROVENANCE.md` 与 `Tool/docs/PROVENANCE.md` 完整标注。
+- **8 个 Web MCP 工具**：`seep_web_pipeline`（一键总入口）、`seep_web_gate`（阶段门，缺前置产物直接 BLOCK）、
+  `seep_cms_fingerprint`、`seep_hls_analyze`、`seep_http_replay`、`seep_spider_extract`、
+  `seep_web_report`、`seep_web_toolbox`。
+- **9 个 PowerShell 取证脚本**（`Tool/scripts/web/`）+ 自测夹具（`_test/`，含本地 CMS / 门槛服务器与假 HLS 样本）。
+- 判决纪律写进提示词：`EXT-X-KEY` 存在 ≠ 加密；key 非 16 字节 ≠ 解密成功；
+  命中 Widevine / FairPlay / PlayReady / pssh → 立即 STOP，不探测许可证服务器。
+- 硬约束写进脚本：`cms-fingerprint.ps1` 只发 GET、≤20 路径、400ms 间隔，不爆破、不提交表单、不尝试登录。
+
+### 新增能力域：Android 外部工具箱
+
+- **3 个 MCP 工具**：`seep_android_toolbox`（就绪检查）、`seep_apkid_scan`（加固 / 混淆器指纹）、
+  `seep_aotopsy`（Flutter / Dart AOT `libapp.so` 静态分析与符号还原）。
+- **6 个 PowerShell 脚本**（`Tool/scripts/android/`）：幂等安装 Frida / objection / frida-dexdump / APKiD / Aotopsy
+  并生成 `.cmd` 垫片，另有 recon / dexdump / objection / apkid / aotopsy 五个作战脚本。
+- **Aotopsy 安装载荷**（`Tool/aotopsy/`，11 MB，MIT）随仓库分发，`install-android-toolbox.ps1` 直接复制，无需构建。
+- 公共库：`Tool/scripts/lib/WebToolbox.ps1`、`Tool/scripts/lib/AndroidToolbox.ps1`。
+
+### MCP 工具数 27 → 38
+
+与原 PE 四件套（`seep_pe_triage` / `_aob_scan` / `_diff` / `_patch`）合并，工具分组扩为**八大类**。
+`seep_status()` 现在同时报告 `pe_engine_exe_reverse`、`android_toolbox`、`web_toolbox` 三块就绪度。
+
+### 体检改动态断言（修复「体检假红 / 假绿」）
+
+- `setup/verify.ps1` 不再写死「27 个原生工具定义」，改为从 `seep_mcp_server.py` 源码统计 `def seep_*`。
+- 技能数改为遍历 `Tool/skill/` 目录统计，不再写死「10 大组件」。
+- 新增 `webseep` 完整性检查（SKILL.md + ≥3 refs + 模板）。
+
+### 文档
+
+- `README.md` / `README.zh.md`：工具矩阵新增「Android 工具箱」「Web / 流媒体」两组，计数 27 → 38。
+- `Tool/docs/MCP-SETUP.md`：工具清单刷新为 38，补充两段外部依赖说明与一键补全命令。
+- 新增 `Tool/docs/WEB-TOOLBOX.md`、`Tool/docs/ANDROID-TOOLBOX.md`、`Tool/docs/SKILL-ROUTING.md`。
+- `Tool/docs/TOOLKIT_GUIDE.md` 升级为六章版（新增 Android 工具箱、Web 取证工具箱两章）。
+- `Tool/docs/PROVENANCE.md`：Skill 溯源扩至 11 个，新增 web/android 脚本溯源与第三方素材归属。
+- `Tool/prompts/SYSTEM.md`：新增「Web / 流媒体取证路由」章节（三步入场 + 判决纪律 + 工具映射）。
+- `Tool/skill/softseep/SKILL.md`：MCP 路由表补 `seep_web_*` / `seep_hls_*` / `seep_cms_*`。
+
+### 已部署用户注意
+
+1. 更新后**必须完全重启 Agent 会话**（MCP 工具在启动时握手，`/reload` 不够），否则看不到新增的 11 个工具。
+2. 新增 11 个工具里有 4 个依赖外部工具箱：`seep_hls_analyze` 需 ffmpeg/ffprobe，
+   `seep_apkid_scan` 需 APKiD，`seep_aotopsy` 需 Aotopsy，`seep_android_toolbox` 只做就绪检查。
+   未安装时这些工具返回明确的修复指引，**不会**导致整个 MCP 服务不可用。
+   补全命令见 `Tool/docs/WEB-TOOLBOX.md` 与 `Tool/docs/ANDROID-TOOLBOX.md`。
+3. `Tool/aotopsy/`（11 MB）随仓库分发，`git pull` 会一并拉取，无需另行下载。
+
+
 ### 案例库：项目D 合并原地演进至 v1.6.1（build 16 支持）
 
 - `Tool/cases/项目D/docs/reverse-engineering.md` 新增 §10：build 16 代码重排迁移（.text +245 KB、段内位移非均匀、capstone 局部定向反汇编、操作数补丁识别）

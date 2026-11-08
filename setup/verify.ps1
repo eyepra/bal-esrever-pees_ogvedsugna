@@ -19,7 +19,8 @@ $Root      = Split-Path -Parent $ScriptDir
 $ToolDir   = Join-Path $Root 'Tool'
 $ToolsDir  = Join-Path $Root 'Tool\mcp\Tool\safe'
 $KbDir     = Join-Path $Root 'Tool\mcp\Tool\reverselab\kb'
-$AgentDir  = Join-Path $env:USERPROFILE '.pi\agent'
+# 允许用 SEEP_AGENT_DIR 覆盖（隔离部署 / 沙盒测试 / 自定义 agent 根目录）
+$AgentDir  = if ($env:SEEP_AGENT_DIR) { $env:SEEP_AGENT_DIR } else { Join-Path $env:USERPROFILE '.pi\agent' }
 $ManualDir = Join-Path $Root 'MANUAL'
 $localSkills = Join-Path $ToolDir 'skill'
 
@@ -29,6 +30,45 @@ $script:TodoList = @()
 
 # 结构化校对明细表（供 Detailed 模式使用）
 $script:AuditTable = [System.Collections.ArrayList]::new()
+
+# 解析一个「真的能执行」的 Python 解释器。
+# 为什么不直接用 `python`：Windows 上 `python` 可能是
+#   · Microsoft Store 的占位别名（执行即弹商店，退出码非 0）
+#   · 指向已删除 venv 的 .cmd 垫片（例如 ~/.pi/agent/bin/python.cmd）
+#   · 某个没装 mcp 的发行版解释器
+# 直接调用会让体检把「解释器不可用」误报成「功能损坏」，所以先探测再使用。
+function Resolve-VerifyPython {
+    $cands = @()
+    if ($env:SEEP_PYTHON) { $cands += $env:SEEP_PYTHON }
+    foreach ($v in @(
+            (Join-Path $AgentDir 'seep-venv\Scripts\python.exe'),
+            (Join-Path $AgentDir 'seep-venv/bin/python')
+        )) {
+        if (Test-Path -LiteralPath $v) { $cands += $v }
+    }
+    $onPath = Get-Command python -ErrorAction SilentlyContinue
+    if ($onPath) { $cands += $onPath.Source }
+    foreach ($p in @(
+            'C:\Program Files\Python312\python.exe',
+            'C:\Program Files\Python311\python.exe',
+            'C:\Program Files\Python310\python.exe'
+        )) {
+        if (Test-Path -LiteralPath $p) { $cands += $p }
+    }
+    foreach ($x in ($cands | Select-Object -Unique)) {
+        if ([string]::IsNullOrWhiteSpace($x)) { continue }
+        if (-not (Test-Path -LiteralPath $x)) { continue }
+        try {
+            & $x -c "import sys" 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { return $x }
+        }
+        catch { }
+    }
+    return $null
+}
+
+# 解析一次并缓存 —— 第 3 节的 DSH 挂载检查也要用，不能等到第 5 节才算
+$script:VerifyPython = Resolve-VerifyPython
 
 function Test-CheckItem {
     param(
@@ -145,7 +185,7 @@ Write-Host @"
 # -----------------------------------------------------------------------------
 # 1. 核心目录与包结构
 # -----------------------------------------------------------------------------
-Write-Host "`n[1/9] 📁 核心架构与工程目录树" -ForegroundColor White
+Write-Host "`n[1/10] 📁 核心架构与工程目录树" -ForegroundColor White
 Test-CheckItem "架构" "工作台主目录完整 (Tool/)" { Test-Path $ToolDir } "请检查是否完整解压或下载了 Seep 完整仓库" "Tool/ 存在" "$Root\Tool"
 Test-CheckItem "架构" "技能包目录完整 (Tool/skill/)" { Test-Path (Join-Path $ToolDir 'skill') } "检查 Tool/skill 是否存在" "Tool/skill 存在" "$ToolDir\skill"
 Test-CheckItem "架构" "MCP服务引擎目录 (Tool/mcp/)" { Test-Path (Join-Path $ToolDir 'mcp') } "检查 Tool/mcp 是否存在" "Tool/mcp 存在" "$ToolDir\mcp"
@@ -186,7 +226,7 @@ Test-CheckItem "版本" "一键卸载脚本 (uninstall.ps1 + uninstall.sh)" {
 # -----------------------------------------------------------------------------
 # 2. 知识库与战术资产
 # -----------------------------------------------------------------------------
-Write-Host "`n[2/9] 📚 攻防实战知识库与战术模板 (KB)" -ForegroundColor White
+Write-Host "`n[2/10] 📚 攻防实战知识库与战术模板 (KB)" -ForegroundColor White
 Test-CheckItem "知识库" "战术实战笔记 (289篇完整检索库)" {
     (Test-Path $KbDir) -and ((Get-ChildItem $KbDir -Recurse -Filter '*.md').Count -ge 280)
 } "Tool/mcp/Tool/reverselab/kb/ 文件缺失，请确认完整拉取" "≥289 篇笔记" "$KbDir"
@@ -198,7 +238,7 @@ Test-CheckItem "知识库" "内置 MCP 源码组件 (ReverseLab/Ghidra/JSHook)" 
 # -----------------------------------------------------------------------------
 # 3. 智能体提示词与多平台适配
 # -----------------------------------------------------------------------------
-Write-Host "`n[3/9] 🧠 智能体指令系统与运行时拦截扩展 (Prompts & Extensions)" -ForegroundColor White
+Write-Host "`n[3/10] 🧠 智能体指令系统与运行时拦截扩展 (Prompts & Extensions)" -ForegroundColor White
 Test-CheckItem "提示词" "Pi Agent 系统指令 (SYSTEM.md 已就绪且去个人化)" {
     $p = Join-Path $ToolDir 'prompts\SYSTEM.md'
     (Test-Path $p) -and (-not (Select-String -Path $p -Pattern '小π|主人' -Quiet))
@@ -210,10 +250,54 @@ Test-CheckItem "扩展"   "底层安全放行与 Lab 状态机扩展 (.ts)" {
     Test-Path (Join-Path $ToolDir 'prompts\extensions\security-audit-interceptor.ts')
 } "安全拦截扩展缺失，无法实现 lab: 状态机与防拒功能" "扩展文件在位" "$ToolDir\prompts\extensions\security-audit-interceptor.ts"
 
+# 项目根 AGENTS.md：DSH 与 Codex 都从项目根读 AGENTS.md / CLAUDE.md 作为指令来源。
+# 它由 setup/generate-configs 从 Tool/prompts/AGENTS.md 复制生成，这里防漂移。
+Test-CheckItem "Agent" "项目根 AGENTS.md 与源同步 (DSH / Codex 指令入口)" {
+    $rootAgents = Join-Path $Root 'AGENTS.md'
+    $srcAgents  = Join-Path $ToolDir 'prompts\AGENTS.md'
+    if (-not (Test-Path $srcAgents)) { return $false }
+    if (-not (Test-Path $rootAgents)) { return $false }
+    $a = ([System.IO.File]::ReadAllText($rootAgents, [System.Text.Encoding]::UTF8)) -replace "`r`n", "`n"
+    $b = ([System.IO.File]::ReadAllText($srcAgents, [System.Text.Encoding]::UTF8)) -replace "`r`n", "`n"
+    $a -eq $b
+} "项目根 AGENTS.md 缺失或与 Tool/prompts/AGENTS.md 不一致；运行 setup/generate-configs.ps1 重新生成" "与源逐字节一致" "$Root\AGENTS.md"
+
+# DSH Cordis 补丁生成物：必须是官方 - insert: 结构，且显式设置 toolCallTimeoutMs。
+# 不设超时会被 DSH 的默认 60s 掐断（HLS 取证 / Flutter AOT / jadx 全量反编译都远超 60s）。
+Test-CheckItem "Agent" "DSH Cordis 补丁生成物合法 (insert + timeout)" {
+    $c = Join-Path $ScriptDir 'cordis.generated.yml'
+    if (-not (Test-Path $c)) { return $false }
+    $t = [System.IO.File]::ReadAllText($c, [System.Text.Encoding]::UTF8)
+    ($t -match '(?m)^- insert:') -and
+    ($t -match 'serverName: seep') -and
+    ($t -match 'toolCallTimeoutMs:') -and
+    ($t -match '@deepseek-ai/dsh-mcp-client')
+} "cordis.generated.yml 缺失或结构不完整；运行 setup/generate-configs.ps1 重新生成" "- insert: + serverName: seep + toolCallTimeoutMs" "$ScriptDir\cordis.generated.yml"
+
+# DSH 已安装但未挂载 → DEGRADED（不阻塞；DSH 是可选的第四种 Agent 接入）
+$dshHomeDir = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
+if (Test-Path $dshHomeDir) {
+    Test-ManualItem "Agent" "DeepSeek Harness 已挂载 seep MCP (cordis.patch.yml)" {
+        $merge = Join-Path $ScriptDir 'dsh-merge.py'
+        if (-not (Test-Path $merge)) { return $false }
+        $py = if ($env:SEEP_PYTHON) { $env:SEEP_PYTHON } else { $script:VerifyPython }
+        if (-not $py) { return $false }
+        & $py $merge --root $Root --dsh-home $dshHomeDir --check 2>$null | Out-Null
+        ($LASTEXITCODE -eq 0)
+    } "运行 python setup/dsh-merge.py 完成挂载（或 python setup/dsh-merge.py --global）" "已写入 cordis.patch.yml" "$dshHomeDir\profiles\web\cordis.patch.yml"
+}
+
 # -----------------------------------------------------------------------------
 # 4. 技能系统完备性 (Skills System)
 # -----------------------------------------------------------------------------
-Write-Host "`n[4/9] 🛠️ 逆向工程专业技能库 (Skills - 10大组件)" -ForegroundColor White
+$skillDirs = @(Get-ChildItem -Path (Join-Path $ToolDir 'skill') -Directory -ErrorAction SilentlyContinue)
+$skillDirCount = $skillDirs.Count
+# safe-skills 是一个聚合目录，内部再含多组技能；按「实际技能数」报数避免误读
+$safeSkillCount = 0
+$safeDir = Join-Path $ToolDir 'skill\safe-skills'
+if (Test-Path $safeDir) { $safeSkillCount = @(Get-ChildItem $safeDir -Directory).Count }
+$skillTotal = $skillDirCount - 1 + $safeSkillCount
+Write-Host "`n[4/10] 🛠️ 逆向工程专业技能库 (Skills - $skillTotal 个技能 / $skillDirCount 个目录)" -ForegroundColor White
 Test-CheckItem "Skill" "核心总控调度器 (softseep 包含 10 大专题库)" {
     $r = Join-Path $localSkills 'softseep\references'
     (Test-Path (Join-Path $localSkills 'softseep\SKILL.md')) -and 
@@ -243,6 +327,12 @@ Test-CheckItem "Skill" "通用许可/卡密校验突破规范 (license-bypass)" 
     Test-Path (Join-Path $localSkills 'client-license-validation-bypass\SKILL.md')
 } "client-license-validation-bypass 技能缺失" "SKILL.md 在位" "$localSkills\client-license-validation-bypass"
 
+Test-CheckItem "Skill" "Web / 流媒体取证 (webseep 包含 SKILL.md + 3 refs + 模板)" {
+    $r = Join-Path $localSkills 'webseep\references'
+    (Test-Path (Join-Path $localSkills 'webseep\SKILL.md')) -and
+    (Test-Path $r) -and ((Get-ChildItem $r -Filter '*.md').Count -ge 3)
+} "webseep 工程不完整，请重跑 setup\install-pi.ps1" "SKILL.md + 3 refs + templates" "$localSkills\webseep"
+
 Test-CheckItem "Skill" "独立战术安全技能包 (safe-skills 5组)" {
     $ss = Join-Path $localSkills 'safe-skills'
     (Test-Path $ss) -and ((Get-ChildItem $ss -Directory).Count -ge 5)
@@ -269,18 +359,45 @@ if (Test-Path $AgentDir) {
 # -----------------------------------------------------------------------------
 # 5. MCP 自动化服务层与底层工具 (MCP & Native Tools)
 # -----------------------------------------------------------------------------
-Write-Host "`n[5/9] 🔌 MCP 服务引擎与物理内置工具箱 (Native Tools)" -ForegroundColor White
+Write-Host "`n[5/10] 🔌 MCP 服务引擎与物理内置工具箱 (Native Tools)" -ForegroundColor White
+
+# 解析一次，后续所有需要跑 Python 的检查点统一复用（含第 3 节的 DSH 检查）
+
+# 工具数以源码为准动态统计，避免版本迭代后断言过时导致「体检假红」
+$seepServerPath = Join-Path $ToolDir 'mcp\seep_mcp_server.py'
+$seepToolCount = if (Test-Path $seepServerPath) {
+    @(Select-String -Path $seepServerPath -Pattern '^def seep_\w+\(' -AllMatches).Count
+} else { 0 }
+
+Test-CheckItem "MCP" "Python 解释器可用于运行时校验 (语法 / 冒烟 / 规则同步)" {
+    $null -ne $script:VerifyPython
+} "未找到可执行的 Python。若 PATH 上的 python 是商店占位别名或失效垫片，请显式设置 SEEP_PYTHON 或安装 Python 3.11+" "解释器可执行且能 import" "SEEP_PYTHON / ~/.pi/agent/seep-venv"
 
 Test-CheckItem "MCP" "核心服务端脚本 (seep_mcp_server.py 语法自洽)" {
     $sp = Join-Path $ToolDir 'mcp\seep_mcp_server.py'
-    if (Test-Path $sp) {
-        $pyCmd = Get-Command python -ErrorAction SilentlyContinue
-        if ($pyCmd) {
-            & python -c "import ast; ast.parse(open(r'$sp', encoding='utf-8').read())" 2>&1 | Out-Null
-            $LASTEXITCODE -eq 0
-        } else { $true }
-    } else { $false }
-} "seep_mcp_server.py 丢失或存在 Python 语法解析错误" "27 个原生工具定义" "$ToolDir\mcp\seep_mcp_server.py"
+    if (-not (Test-Path $sp)) { return $false }
+    if (-not $script:VerifyPython) { return $true }   # 解释器不可用由上一项单独报，不在这里重复罚
+    & $script:VerifyPython -c "import ast; ast.parse(open(r'$sp', encoding='utf-8').read())" 2>&1 | Out-Null
+    ($LASTEXITCODE -eq 0)
+} "seep_mcp_server.py 丢失或存在 Python 语法解析错误" "$seepToolCount 个原生工具定义" "$ToolDir\mcp\seep_mcp_server.py"
+
+# 语法合法 ≠ 能在 stdio 下工作：subprocess.run 派生点若漏了 stdin=DEVNULL，
+# 子进程会继承 MCP 自己的 JSON-RPC 管道，Python 子解释器卡在启动阶段，
+# 工具表现为永久挂起直到客户端超时（issue #13）。这一层只有跑到真实调用才暴露，
+# 所以用冒烟脚本的 --quick 静态层兜住：零依赖、毫秒级、能直接点出行号。
+Test-CheckItem "MCP" "stdio 子进程不继承 stdin (issue #13 回归防护)" {
+    $smoke = Join-Path $ToolDir 'mcp\test_stdio_smoke.py'
+    if (-not (Test-Path $smoke)) { return $true }   # 旧版本无此脚本时不判定，避免误报
+    if (-not $script:VerifyPython) { return $true }  # 解释器不可用由专门项报
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $script:VerifyPython $smoke --quick 2>&1 | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+} "subprocess 调用缺少 stdin=DEVNULL，stdio 模式下 seep_pe_* 会挂死（详见 issue #13）" "全部调用点已隔离" "$ToolDir\mcp\test_stdio_smoke.py"
 
 Test-CheckItem "工具箱" "Jadx 反编译引擎 (jadx-1.5.6 完整就绪)" {
     $j = Join-Path $ToolsDir 'jadx\lib\jadx-1.5.6-all.jar'
@@ -318,37 +435,53 @@ Test-CheckItem "依赖" "Playwright 浏览器自动化依赖已解压 (playwrigh
 # -----------------------------------------------------------------------------
 # 6. 环境运行时与第三方依赖配置
 # -----------------------------------------------------------------------------
-Write-Host "`n[6/9] ⚙️ 外部运行时与商业授权协同 (Runtime & Commercial)" -ForegroundColor White
+# -----------------------------------------------------------------------------
+# 5b. 外部能力包可用性（不只看文件在不在，而是这个工具现在能不能真跑）
+#     这些程序不在仓库里（体积 / 平台 / 版本耦合），所以缺失不阻塞部署：
+#     用 Test-ManualItem 归入「可选/建议关注」，判为 🟡 DEGRADED 而不是 🔴 MISSING。
+# -----------------------------------------------------------------------------
+Write-Host "`n[6/10] 🧰 外部能力包可用性 (Web / Android / 扫描器)" -ForegroundColor White
 
-# 自动补全常见 Python 安装路径到临时 PATH（提高 Windows 环境自愈容错率）
-if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    $pyCandidates = @(
-        'C:\Program Files\Python312',
-        'C:\Program Files\Python311',
-        'C:\Program Files\Python310',
-        "$env:LOCALAPPDATA\Programs\Python\Python312",
-        "$env:LOCALAPPDATA\Programs\Python\Python311",
-        "$env:LOCALAPPDATA\Programs\Python\Python310"
-    )
-    foreach ($cand in $pyCandidates) {
-        if (Test-Path (Join-Path $cand 'python.exe')) {
-            $env:Path = "$cand;$cand\Scripts;" + $env:Path
-            break
-        }
+$capWebLib = Join-Path $Root 'Tool\scripts\lib\WebToolbox.ps1'
+$capAndLib = Join-Path $Root 'Tool\scripts\lib\AndroidToolbox.ps1'
+if (Test-Path $capWebLib) { . $capWebLib }
+if (Test-Path $capAndLib) { . $capAndLib }
+
+$capGroups = @(
+    @{ Name = 'Web 取证';        Tools = @('ffmpeg', 'ffprobe'); Purpose = 'HLS 六类根因判定（防盗链 / AES-128 / DRM）'; Fix = 'setup\install-capabilities.ps1 -Only web' },
+    @{ Name = 'Flutter AOT';     Tools = @('aotopsy');           Purpose = 'Dart AOT (libapp.so) 静态分析与符号还原';   Fix = 'setup\install-capabilities.ps1 -Only aotopsy' },
+    @{ Name = 'Android 动态';    Tools = @('frida', 'objection'); Purpose = '动态插桩 / SSL Pinning 绕过 / 内存脱壳';   Fix = 'setup\install-capabilities.ps1 -Only android' },
+    @{ Name = '加固指纹';        Tools = @('apkid');             Purpose = 'APKiD 查壳 / 反调试 / 混淆器识别';          Fix = 'setup\install-capabilities.ps1 -Only android' },
+    @{ Name = '扫描器（可选）';  Tools = @('nuclei', 'ffuf');    Purpose = '模板化漏扫与目录爆破';                      Fix = 'setup\install-capabilities.ps1 -Only scanners' }
+)
+
+foreach ($g in $capGroups) {
+    $found = @()
+    $lost  = @()
+    foreach ($t in $g.Tools) {
+        $p = $null
+        if (Get-Command Resolve-AndroidTool -ErrorAction SilentlyContinue) { $p = Resolve-AndroidTool -Name $t }
+        if (-not $p -and (Get-Command Resolve-WebTool -ErrorAction SilentlyContinue)) { $p = Resolve-WebTool -Name $t }
+        if ($p) { $found += $t } else { $lost += $t }
     }
+    $itemName = "{0} ({1})" -f $g.Name, ($g.Tools -join ' + ')
+    $expected = "可执行文件在 PATH 或工具箱内"
+    Test-ManualItem "能力" $itemName {
+        ($lost.Count -eq 0)
+    } ("缺 {0}；补全: powershell -File {1}" -f ($lost -join ', '), $g.Fix) $expected ""
 }
 
+
+Write-Host "`n[7/10] ⚙️ 外部运行时与商业授权协同 (Runtime & Commercial)" -ForegroundColor White
+
 Test-CheckItem "运行时" "Python 解释器 (3.11+ 且可执行)" {
-    $py = Get-Command python -ErrorAction SilentlyContinue
-    $py -ne $null
-} "系统未安装 Python 或未加入 PATH 环境变量，请安装 Python 3.11+" "Python 3.11+" "PATH"
+    $null -ne $script:VerifyPython
+} "系统未安装 Python 或未加入 PATH 环境变量，请安装 Python 3.11+（或用 SEEP_PYTHON 指定）" "Python 3.11+" "PATH / SEEP_PYTHON"
 
 Test-ManualItem "协议" "Python mcp 协议库环境支持 (mcp>=1.20,<1.29)" {
-    $py = Get-Command python -ErrorAction SilentlyContinue
-    if ($py) {
-        & python -c "import mcp" 2>&1 | Out-Null
-        $LASTEXITCODE -eq 0
-    } else { $false }
+    if (-not $script:VerifyPython) { return $false }
+    & $script:VerifyPython -c "import mcp" 2>&1 | Out-Null
+    ($LASTEXITCODE -eq 0)
 } "运行 pip install ""mcp>=1.20,<1.29"" 补齐协议支持" "mcp 库已安装" "Python site-packages"
 
 Test-ManualItem "商业软件" "IDA Pro 商业反编译器协同 (需自备独立授权)" {
@@ -366,7 +499,7 @@ Test-ManualItem "配置" "Claude Code 项目级 MCP 注册 (.mcp.json 在根目�
 # -----------------------------------------------------------------------------
 # 7. MANUAL/ 战术手册完备性校验 (Tactical Manuals)
 # -----------------------------------------------------------------------------
-Write-Host "`n[7/9] 📚 MANUAL/ 战术手册完备性校验" -ForegroundColor White
+Write-Host "`n[8/10] 📚 MANUAL/ 战术手册完备性校验" -ForegroundColor White
 
 Test-CheckItem "手册" "环境预要求指南 (MANUAL/PREREQUISITES.md)" {
     Test-Path (Join-Path $ManualDir 'PREREQUISITES.md')
@@ -407,7 +540,7 @@ Test-CheckItem "手册" "合规转译中继与防拒体系 (MANUAL/COMPLIANCE-RE
 # -----------------------------------------------------------------------------
 # 8. 合规转译中继（网络层防拒）
 # -----------------------------------------------------------------------------
-Write-Host "`n[8/9] 🌐 合规转译中继与规则同步校验" -ForegroundColor White
+Write-Host "`n[9/10] 🌐 合规转译中继与规则同步校验" -ForegroundColor White
 $RelayDir = Join-Path $ToolDir 'scripts\compliance-relay'
 
 Test-CheckItem "中继" "中继主程序 (relay.py 纯标准库实现)" {
@@ -425,11 +558,10 @@ Test-CheckItem "中继" "上下文守卫白名单 (guard-prefixes.json)" {
 Test-CheckItem "中继" "规则表与 TS 源同步 (sensitive-rules.json)" {
     $rules = Join-Path $RelayDir 'sensitive-rules.json'
     if (-not (Test-Path $rules)) { return $false }
-    $py = Get-Command python -ErrorAction SilentlyContinue
-    if (-not $py) { return (Test-Path $rules) }
+    if (-not $script:VerifyPython) { return (Test-Path $rules) }
     Push-Location $RelayDir
     try {
-        & python extract-rules.py --check 2>&1 | Out-Null
+        & $script:VerifyPython extract-rules.py --check 2>&1 | Out-Null
         $LASTEXITCODE -eq 0
     } finally { Pop-Location }
 } "规则表与 TS 源不一致，请运行 python Tool/scripts/compliance-relay/extract-rules.py" "与 TS 源同步" "$RelayDir\sensitive-rules.json"
@@ -441,14 +573,20 @@ Test-CheckItem "中继" "中继单元测试套件 (tests/test_relay.py)" {
 # -----------------------------------------------------------------------------
 # 9. 脱敏与隐私走查（递归全深度）
 # -----------------------------------------------------------------------------
-Write-Host "`n[9/9] 🔒 脱敏与个人隐私走查 (递归全深度扫描)" -ForegroundColor White
+Write-Host "`n[10/10] 🔒 脱敏与个人隐私走查 (递归全深度扫描)" -ForegroundColor White
 
 # 个人隐私模式：绝对路径 / 个人身份 / 私有邮箱 / 私有域名 / 裸用户名
 $PrivacyPattern = 'C:[\\/]{1,2}Users[\\/]{1,2}Angus|AngusDevLab|angusdevlab|angus\.vip@|angusdev\.top|\bAngus\b'
 
 # 排除：第三方依赖、上游镜像、构建产物，以及扫描器自身（其模式定义会自匹配）
 $PrivacyExcludeRegex = '\\node_modules\\|\\__pycache__\\|\\Tool\\upstream\\|\\Tool\\mcp\\Tool\\|\\\.git\\|\\dist\\'
-$PrivacyExcludeNames = @('verify.ps1', 'verify.sh')
+# 安装时由脚本生成的本地配置：内含本机绝对路径属正常现象，且已被 .gitignore 排除。
+# 非 git（压缩包）部署时它们会留在磁盘上，必须一并排除，否则每次体检都误报。
+$PrivacyExcludeNames = @(
+    'verify.ps1', 'verify.sh',
+    'opencode.jsonc', 'cordis.generated.yml', 'relay-config.json',
+    'tool-index.json', 'tool-index.md'
+)
 $BinaryExt = @('.exe','.dll','.so','.dylib','.jar','.zip','.7z','.png','.jpg','.jpeg','.gif','.ico','.pdf','.bin','.dmp','.pyc','.idb','.i64','.ttf','.woff','.woff2')
 
 Test-CheckItem "脱敏" "个人隐私零残留 (已跟踪文件全深度扫描)" {
@@ -477,7 +615,7 @@ Test-CheckItem "脱敏" "个人隐私零残留 (已跟踪文件全深度扫描)"
             } |
             Select-String -Pattern $PrivacyPattern -CaseSensitive -ErrorAction SilentlyContinue
     -not $hits
-} "发现个人隐私残留，请立即脱敏后重新提交" "零残留" "git 已跟踪文件（排除第三方依赖与上游镜像）"
+} "发现个人隐私残留，请立即脱敏后重新提交" "零残留" "$(if (Test-Path (Join-Path $Root '.git')) { 'git 已跟踪文件（排除第三方依赖与上游镜像）' } else { '工作树（排除依赖、上游镜像与安装生成的本地配置）' })"
 
 Test-CheckItem "脱敏" "含本机路径的生成物未被 git 追踪" {
     if (-not (Test-Path (Join-Path $Root '.git'))) { return $true }

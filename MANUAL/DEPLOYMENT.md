@@ -58,7 +58,7 @@ Pi Agent 是原生支持 Skill 渐进式披露、拦截扩展与 `lab：` 状态
    powershell -ExecutionPolicy Bypass -File .\setup\install.ps1
    ```
 2. **确认写入目录**：
-   - 技能包写入至：`~/.pi/agent/skills/`（包含 `softseep`、`exe-reverse`、`apkseep` 等 10 个技能）；
+   - 技能包写入至：`~/.pi/agent/skills/`（包含 `softseep`、`exe-reverse`、`apkseep`、`webseep` 等 11 个技能）；
    - 系统提示词写入至：`~/.pi/agent/SYSTEM.md` 与 `AGENTS.md`；
    - 安全放行扩展写入至：`~/.pi/agent/extensions/security-audit-interceptor.ts`；
    - MCP 服务注册至：`~/.pi/agent/mcp.json`（其中已将 `<SEEP_ROOT>` 自动替换为当前工作台绝对路径）。
@@ -100,7 +100,7 @@ Claude Code 原生支持项目级上下文（`CLAUDE.md`）与项目级 MCP 注�
    ```text
    /mcp
    ```
-   检查 `seep` 服务是否显示为绿色 `connected`，且暴露出 27 个工具。
+   检查 `seep` 服务是否显示为绿色 `connected`，且暴露出 38 个工具。
 5. **执行一键校验**：
    在 Claude 对话框直接发送：
    ```text
@@ -112,26 +112,44 @@ Claude Code 原生支持项目级上下文（`CLAUDE.md`）与项目级 MCP 注�
 
 ### 3. 🔵 DeepSeek Harness (DSH) 专属接入流程
 
-DeepSeek Harness 采用基于 Cordis 插件协议的 YAML 配置。根据 [DSH 官方规范](https://deepseek-harness.github.io/deepseek-harness/guide/mcp-memory)，其补丁机制采用 `- insert:` 语法。
+DSH 通过 `@deepseek-ai/dsh-mcp-client` 桥接外部 MCP，配置以 **Cordis Overlay 补丁**形式挂载
+（顶层 `- insert:` 语法）。适配基准：DSH 0.2.2-rc.1。
 
-1. **自动生成官方标准 Cordis Overlay 补丁**：
-   在项目根目录下执行：
+1. **生成补丁**（`install.ps1` / `install.sh` 已自动执行，也可单独跑）：
    ```powershell
    powershell -ExecutionPolicy Bypass -File .\setup\generate-configs.ps1
    ```
-   脚本将自动读取当前物理路径并生成已填好真实路径的 `setup/cordis.generated.yml`（采用官方标准的 `- insert:` 顶层语法）。
-2. **挂载运行（两种官方方式二选一）**：
-   - **方式 A（命令行启动热挂载 · 最推荐）**：
-     ```bash
-     dsh web --patch "<SEEP_ROOT>/setup/cordis.generated.yml"
-     ```
-   - **方式 B（写入用户 Profile 持久生效）**：
-     - 若针对单一 profile：将 `setup/cordis.generated.yml` 内容追加合并至 `$DSH_HOME/profiles/<name>/cordis.patch.yml`；
-     - 若针对本机所有 profile：合并至 `$DSH_HOME/cordis.patch.yml`。
-3. **加载核心指令**：
-   将 `Tool/prompts/AGENTS.md` 复制或软链至 DSH 工作目录根路径。
-4. **启动会话并开工**：
-   在 DSH 中启动会话，发送 `check` 确认环境连通。
+   产物：`setup/cordis.generated.yml`，含 `seep` 与 `js-reverse` 两条服务，
+   并**显式写入 `toolCallTimeoutMs`**（DSH 默认 60 秒，本工作台的长任务远超此值）。
+
+2. **挂载（三选一）**：
+   ```bash
+   # A. 持久挂载（推荐）—— 幂等，只替换标注块，你自己的模型/插件配置原样保留，写前自动备份
+   python setup/dsh-merge.py
+
+   # B. 全局挂载 —— 本机所有 profile 生效
+   python setup/dsh-merge.py --global
+
+   # C. 临时挂载 —— 不落盘
+   dsh web --patch "<工作台绝对路径>/setup/cordis.generated.yml"
+   ```
+
+3. **指令来源**：项目根 `AGENTS.md` 由 `generate-configs` 从 `Tool/prompts/AGENTS.md`
+   复制生成，DSH 会自动读取，无需手工 `cp`。
+
+4. **校验**：
+   ```bash
+   python setup/dsh-merge.py --check         # 0=已挂载
+   dsh --profile web --dump-config | grep -A12 "serverName: seep"
+   python setup/test_dsh_mount.py            # 端到端：按 DSH 合成配置启动 MCP，数工具
+   ```
+
+5. **使用**：在 DSH 里工具名为 `mcp__seep__seep_pe_triage` 这种形式
+   （`mcp__<serverName>__<原始工具名>`）。发送 `check` 确认连通，再发 `lab：` 开工。
+
+> 卸载：`python setup/dsh-merge.py --remove`（只移除标注块，其余配置不动）。
+
+详见 [DSH-PROFILE.md](../DSH-PROFILE.md)。
 
 ---
 
@@ -205,7 +223,8 @@ cd <你的工作台目录>
 | 3 | 打印 `CHANGELOG.md` 本次变更说明 | 更新前先预览 |
 | 4 | 调用 `install.ps1` 幂等增量同步 | **自动备份**到 `~/.pi/agent/backup-<时间戳>/` |
 | 5 | 校验用户自有数据零丢失 | 对比更新前后的 MCP 条目 |
-| 6 | 跑官方基准自检并输出报告 | 47/46 项门禁 |
+| 6 | **补齐外部能力包**（ffmpeg / frida / APKiD / Aotopsy） | 失败只警告，绝不中断更新 |
+| 7 | 跑官方基准自检 + 输出能力看板 | 核心检查项须全绿 |
 
 ### 3. 永不被覆盖的用户数据
 
@@ -225,11 +244,67 @@ cd <你的工作台目录>
 | 参数 | 作用 |
 |---|---|
 | `-DryRun`（Windows）/ `--dry-run` | 只显示将要做什么，**不修改任何文件** |
+| `--with-tools`（Unix） | 顺带补齐外部能力包（ffmpeg + frida + APKiD） |
+| `--check-capabilities`（Unix） | 只补外部能力、不动代码 |
+| `--skip-capabilities`（Unix） | 跳过能力包步骤 |
 | `-NoPull` / `--no-pull` | 跳过 `git pull`（适用于手动下载压缩包覆盖的场景） |
+| `-WithTools` | **顺带补齐外部能力包**（ffmpeg + frida + APKiD），首次更新推荐 |
+| `-CheckCapabilities` | **只补外部能力、不动代码**（网络拉不动代码时用） |
+| `-SkipCapabilities` | 跳过能力包步骤（用你已装好的外部工具） |
 | `-SkipVerify` / `--skip-verify` | 跳过最终自检（不建议） |
 | `-IdaRoot "<路径>"`（Windows） | 更新时顺带绑定 IDA Pro 路径 |
 
-### 5. 压缩包部署的用户（非 Git）
+### 5. 外部能力包：为什么需要单独一步
+
+工作台的 `seep` MCP 有 **38 个工具**，其中一部分真正的算力来自**仓库之外的独立程序**：
+
+| 组件 | 谁在用 | Windows | Unix |
+|---|---|---|---|
+| `ffmpeg` + `ffprobe` | `seep_hls_analyze`（HLS 六类根因判定） | 约 80 MB 下载 | 包管理器安装（brew/apt/dnf/pacman） |
+| `aotopsy` | `seep_aotopsy`（Flutter / Dart AOT 分析） | **仓库自带，零网络** | 🔴 不支持（Windows PE） |
+| `frida` / `objection` | `seep_android_toolbox`、动态插桩与脱壳 | pip + 独立 venv | pip + 独立 venv（`~/.seep/android`） |
+| `apkid` | `seep_apkid_scan`（加固 / 混淆器指纹） | pip | pip（同上 venv） |
+| `nuclei` / `ffuf` | `seep_web_report` 的可选漏扫环节 | 约 40 MB 下载 | brew 优先，其余需手动 |
+
+这些不在 git 仓库里，也不该塞进去（体积大、平台相关、版本要和设备对齐）。
+所以部署链路分两层：**代码层**（`git pull`）与**能力层**（本步骤）。
+
+**默认只装零成本件**（Aotopsy 直接从仓库复制），需要下载/装包的必须显式点名：
+
+```powershell
+# 一次性全补（推荐，缺什么补什么，可重复执行）
+powershell -File setup\install-capabilities.ps1 -Only all
+
+# 只补某几组
+powershell -File setup\install-capabilities.ps1 -Only web
+powershell -File setup\install-capabilities.ps1 -Only android
+powershell -File setup\install-capabilities.ps1 -Only scanners
+
+# 只看现状，不动磁盘
+powershell -File setup\install-capabilities.ps1 -CheckOnly
+```
+
+**Unix（Linux / macOS）**：
+
+```bash
+./setup/install-capabilities.sh                  # 默认：检测/安装 ffmpeg
+./setup/install-capabilities.sh --only all       # 一次补齐
+./setup/install-capabilities.sh --check-only     # 只报表
+```
+
+> **缺件不会导致 MCP 服务起不来。** 相关工具会返回明确的修复指引（例如
+> `[ERROR]: Aotopsy 未部署。请运行 ...install-android-toolbox.ps1 -Only aotopsy`），
+> 其余工具照常工作。`check.ps1` / `verify.sh` 会以 🟡 DEGRADED 如实标出，**不会**因此判失败。
+>
+> **平台边界**：`aotopsy` 是 Windows PE 单文件，Unix 不支持；8 个 `seep_web_*` 工具依赖
+> PowerShell 脚本，Unix 需先安装 PowerShell 7 才能驱动。详见
+> [CROSS-PLATFORM.md](CROSS-PLATFORM.md)。
+
+**装在哪里 / 怎么改位置**：默认 `D:\Tool\Web` 与 `D:\Tool\Android`，
+可用环境变量 `SEEP_WEB_TOOLBOX` / `SEEP_ANDROID_TOOLBOX` 覆盖，
+或用 `-ToolboxRoot <路径>` 一次性改根目录。
+
+### 6. 压缩包部署的用户（非 Git）
 
 如果你当初是下载 ZIP 解压的，没有 `.git` 目录：
 
@@ -238,19 +313,31 @@ cd <你的工作台目录>
    > **切勿**覆盖你自己的 `work/`、`project/`、`logs/` 等数据目录；
 3. 进入新目录运行 `setup/update.ps1 -NoPull`（或 `setup/update.sh --no-pull`）完成配置同步。
 
-### 6. 更新后必做的一步
+### 7. 更新后必做的一步
 
 > ⚠️ **必须完全关闭并重新打开 Agent 会话**（Pi / Claude Code / DSH / OpenCode）。
-> 新同步的 Skill 与扩展需要重新加载才会生效。
+>
+> * 新同步的 Skill 与扩展：需要进程重启才会重新读取；
+> * **MCP 工具：在会话启动时握手**，不重开就看不到新工具（`/reload`、刷新页面都不算）。
+>
+> 重开后再发送 `lab：` 继续开工。
 
-### 7. 如何回滚
+**自检是否真的生效**：
+
+```powershell
+# 服务端工具总数（应与版本说明里的数字一致）
+python Tool/mcp/test_stdio_smoke.py
+```
+
+### 8. 如何回滚
 
 | 回滚对象 | 操作 |
 |---|---|
 | **配置** | 从 `~/.pi/agent/backup-<时间戳>/` 拷回 `mcp.json` / `settings.json` 等 |
 | **代码** | `git -C <工作台目录> log --oneline -10` 找到目标提交后 `git reset --hard <commit>` |
+| **外部能力** | 删掉 `D:\Tool\Web`、`D:\Tool\Android` 即可；它们与仓库完全解耦，不影响 MCP 启动 |
 
-### 8. 更新前先看变更
+### 9. 更新前先看变更
 
 每次更新的内容都记录在 **[CHANGELOG.md](../CHANGELOG.md)**，包含新增 / 变更 / 修复 / 安全四类，
 并标注哪些需要手工干预。建议更新前扫一眼。

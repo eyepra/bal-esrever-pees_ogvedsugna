@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.6.1-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
+  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.10.2-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
   <a href="https://github.com/angusdevgo/seep-reverse-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/Architecture-x86%20%7C%20x64%20%7C%20ARM64-orange?style=for-the-badge" alt="Architecture">
@@ -57,10 +57,10 @@
 
 | 痛点 | 解决方案 |
 |---|---|
-| 🔧 **工具链高度碎片化** | 27 个 MCP 工具封装 Radare2/JADX/Apktool/Frida/PE 引擎，统一调度，零手动切换 |
+| 🔧 **工具链高度碎片化** | 38 个 MCP 工具封装 Radare2/JADX/Apktool/Frida/PE 引擎，统一调度，零手动切换 |
 | 🧠 **大模型缺乏决断逻辑** | `softseep` 总控：两级自动判型（平台 × 9 类业务）+ 七道门决策树 |
 | 🛡️ **云端模型频繁拒绝** | 三层保险：底座级 `BLOCK_NONE` 注入 + 动态口语合规转译 + 推理级思维重定向 |
-| 📚 **实战经验无法沉淀** | 289 篇战术实战笔记 + 14 大脱敏工业范式 + "先查知识库再动手"强制纪律 |
+| 📚 **实战经验无法沉淀** | 294 篇战术实战笔记 + 14 大脱敏工业范式 + "先查知识库再动手"强制纪律 |
 | 📦 **环境部署摩擦高昂** | 一键 `install.ps1`，原生适配 Pi Agent / Claude Code / DeepSeek Harness / Codex |
 
 ---
@@ -88,7 +88,7 @@
           │                │                  │
           ▼                ▼                  ▼
     seep MCP          IDA Pro MCP         知识库检索
-    27 个工具          (可选联动)          289 篇战术笔记
+    38 个工具          (可选联动)          294 篇战术笔记
     (R2/JADX/                             (Zero-Waste Recon)
      Apktool/Frida)
           │
@@ -145,7 +145,7 @@ Agent 自主完成：
 - 🔄 **PoC 自愈循环**：Frida 报错 → 根因映射 → 自动修正代码 → 重跑（最多 3 次，超限后结构化移交人工）
 - 💎 **14 大工业级脱敏范式**：单进程离线 → 多进程 IPC → VM 集中判定 → .NET 算号 → 弱模 RSA 旁路 → Java 动态插桩 → .NET VM 逆向，全覆盖（项目 A ~ 项目 N）
 - 🌐 **链路层合规转译中继与自动重试**：纯标准库实现的本地中继，支持流式拒答自动重试级联（`S1 评审清单` → `S2 架构走查` → `S3 英文重塑`），100% 保留目标参数不漂移，84 项单元测试全绿
-- ⚡ **DeepSeek Harness (DSH) 秒级自愈套件**：解决官方与插件在 Windows 上的扫描超时与端口冲突，4 秒极速冷启动，自动提取 Token URL 与 MCP 在线核验 (`start-dsh.ps1` / `stop-dsh.ps1`)
+- ⚡ **DeepSeek Harness (DSH) 接入**：一条命令幂等挂载进 `$DSH_HOME/profiles/<p>/cordis.patch.yml`（`setup/dsh-merge.py`，写前备份、你自己的条目原样保留），并显式设置 `toolCallTimeoutMs`（DSH 默认 60 秒会掐断长任务）；配套端到端校验 `setup/test_dsh_mount.py` 会按 DSH 自己合成的配置真启动一次并数工具
 - 🛡️ **实测抗拒答综合防线**：Gemini-Safe 提示词语义重塑（`gemini-safe.flag`，377 token 拒答 → 3300 字深度分析）、L1 拦截器动态可观测日志（`l1-log.flag`）、底座级 `BLOCK_NONE` 注入
 - 🔌 **离线预置全量内置**：所有工具链物理打包（251 MB），部署后零外网依赖
 - 🪟 **Windows PE 深水区引擎（`exe-reverse`）**：41 篇带门禁的参考文档 + **16 个零依赖 Python 引擎** —— `peutil`（RVA↔偏移、导入导出/TLS/重定位、微软校验和、逐节熵）、`pe_triage`、`pepatch`（等长补丁 + 校验和重算 + **写盘后逐字节回读**）、`aob_scan`（unique/ambiguous/pervasive 裁决）、`pe_diff`、`hwprobe`、`trace_reduce`（可选 SMT 证明）、`fold`。覆盖保护壳、虚拟化/控制流平坦化、.NET、Unity IL2CPP、打包 Python、内核驱动、硬件追踪与 Hypervisor 观测
@@ -163,7 +163,7 @@ Seep\ (251 MB)
 ├── README.zh.md                   ← 本文件（中文文档）
 ├── CLAUDE.md                      ← Claude Code 项目级原生指令
 ├── .mcp.json                      ← 项目级 MCP 注册文件（Claude Code / OpenCode）
-├── DSH-PROFILE.md                 ← DeepSeek Harness Cordis 插件配置模板
+├── DSH-PROFILE.md                 ← DeepSeek Harness 接入：字段表 / 挂载方式 / 校验
 ├── check.bat                      ← ⭐ 双击一键体检入口（Windows）
 ├── check.ps1                      ← PowerShell 体检入口
 ├── VERSION                        ← 当前版本标识
@@ -179,7 +179,7 @@ Seep\ (251 MB)
 │   │   └── safe-skills\           ← 5 个独立战术工具包
 │   │
 │   ├── mcp\                       ← MCP 服务引擎
-│   │   ├── seep_mcp_server.py     ← 核心服务端，27 个底层分析工具
+│   │   ├── seep_mcp_server.py     ← 核心服务端，38 个底层分析工具
 │   │   └── Tool\                  ← ⚠️ 硬编码相对路径，禁止重命名/搬移
 │   │       ├── safe\              ← 物理内置工具箱
 │   │       │   ├── jadx\          ← 75 MB（v1.5.6）
@@ -189,7 +189,7 @@ Seep\ (251 MB)
 │   │       │   ├── ida-pro-mcp\   ← IDA 桥接适配层
 │   │       │   ├── js-reverse-mcp\← Web / JS 调试引擎
 │   │       │   └── playwright-mcp\← 无头浏览器自动化
-│   │       └── reverselab\        ← 289 篇战术笔记 + 攻击链模板
+│   │       └── reverselab\        ← 294 篇战术笔记 + 攻击链模板
 │   │
 │   ├── prompts\                   ← 智能体协同规范与运行时扩展
 │   │   ├── SYSTEM.md              ← Pi Agent 系统指令
@@ -226,7 +226,7 @@ Seep\ (251 MB)
 
 ## 🛠️ MCP 工具矩阵
 
-自研 `seep` MCP 服务暴露 **27 个原生工具**，分六大功能组：
+自研 `seep` MCP 服务暴露 **38 个原生工具**，分八大功能组：
 
 | 分类 | 工具 | 核心功能 | 上下文控制 |
 |---|---|---|---|
@@ -245,12 +245,23 @@ Seep\ (251 MB)
 | | `seep_pe_aob_scan` | AOB 特征码定位 + `unique` / `ambiguous` / `pervasive` 裁决 | `limit=` |
 | | `seep_pe_diff` | 跨版本差分（归一化易变头字段，差异映射回 RVA） | — |
 | | `seep_pe_patch` | 可验证等长补丁：校验和重算 + 写盘后逐字节回读 | `dry_run=` |
+| **Android 工具箱** | `seep_android_toolbox` | 外部 Frida / objection / APKiD / Aotopsy 工具箱就绪检查 | — |
+| | `seep_apkid_scan` | APKiD 加固与对抗指纹识别（壳商、混淆器） | — |
+| | `seep_aotopsy` | Flutter / Dart AOT（`libapp.so`）静态分析、Dart 符号还原 | `keyword=` |
+| **Web / 流媒体** | `seep_web_pipeline` | 一键串联：授权门 → 指纹 → 举证 → 复测 → 报告 | `authorized=` |
+| | `seep_web_gate` | Web 阶段门，前置产物缺失直接 BLOCK | — |
+| | `seep_cms_fingerprint` | CMS 家族 / 采集接口 / 播放器链路 / 暴露面指纹 | `deep=` |
+| | `seep_hls_analyze` | HLS 六类根因判定：防盗链 / 鉴权 / AES-128 / DRM / 源失效 | — |
+| | `seep_http_replay` | 头变体矩阵重放，定位真正的门槛头 | — |
+| | `seep_spider_extract` | TVBox / CatVod spider 三入口提取 | — |
+| | `seep_web_report` | 生成 Web 源与暴露面安全评估报告 | — |
+| | `seep_web_toolbox` | Web 工具箱就绪检查（ffmpeg / nuclei / ffuf） | — |
 | **Android 逆向** | `seep_apk_info` | APK 清单 / 权限 / 签名（免 Java）| — |
 | | `seep_apk_decompile` | JADX 全量 Java 源码反编译 | — |
 | | `seep_apk_unpack` | Apktool 资源 + Smali 解包 | — |
 | | `seep_apk_smali_search` | Smali 关键词/密钥/门禁位点检索 | `limit=` |
 | | `seep_apk_gen_hook` | 自动生成带堆栈打印的 Frida 探针 | — |
-| **知识库** | `seep_kb_search` | 289 篇战术笔记全文检索 | `limit=` |
+| **知识库** | `seep_kb_search` | 294 篇战术笔记全文检索 | `limit=` |
 | | `seep_kb_read` | 按主题精确读取完整技术手册 | — |
 | | `seep_kb_checklist` | 应急排查清单与攻击矩阵 | — |
 | | `seep_kb_payloads` | JWT / SSRF / SSTI / SQLi 载荷模板 | — |
@@ -284,7 +295,29 @@ chmod +x setup/install.sh
 ./setup/install.sh
 ```
 
-> **脚本全自动完成**：解压内置依赖包 (`node_modules.zip`) → 校验内置工具完整性 → 安装 Python mcp 库 → 注册 MCP 服务 → 展开绝对物理路径 → 执行全量自检。
+> **脚本全自动完成**：解压内置依赖包 (`node_modules.zip`) → 校验内置工具完整性 →
+> 安装 Python mcp 库 → 注册 MCP 服务（自动挑选真正装了 `mcp` 的解释器）→ 展开绝对物理路径 →
+> 补齐外部能力包（默认只装零成本的 Aotopsy）→ 执行全量自检 + 能力看板。
+
+**可选：补齐外部能力包**
+
+38 个 MCP 工具里有几个依赖仓库外的程序。首次部署只自动装零成本件，其余按需一条命令补齐：
+
+```powershell
+powershell -File setup\install-capabilities.ps1 -Only all   # 全补：ffmpeg / frida / APKiD / nuclei / ffuf
+powershell -File setup\install-capabilities.ps1 -CheckOnly  # 只看现状
+```
+
+**Linux / macOS**：
+
+```bash
+./setup/install-capabilities.sh --only all
+```
+
+> 缺件不会让 MCP 起不来：相关工具会返回明确的修复指引，`check.ps1` / `verify.sh` 以 🟡 DEGRADED 标出，不判失败。
+> **平台边界**：`aotopsy`（Flutter AOT）为 Windows-only；8 个 `seep_web_*` 工具依赖 PowerShell 脚本，
+> Unix 需先装 PowerShell 7。详见 [CROSS-PLATFORM.md](MANUAL/CROSS-PLATFORM.md)。
+> 详见 [MANUAL/DEPLOYMENT.md — 外部能力包](MANUAL/DEPLOYMENT.md#5-外部能力包为什么需要单独一步)。
 
 ### 3. 多 Agent 接入方式
 
@@ -292,7 +325,7 @@ chmod +x setup/install.sh
 |---|---|---|---|
 | **Pi Agent** | `Tool/prompts/SYSTEM.md` | `~/.pi/agent/mcp.json` | 运行 `install.ps1` 自动写入，完成后**必须重启当前终端与 Pi 会话**。 |
 | **Claude Code** | 项目根 `CLAUDE.md` | 项目根 `.mcp.json` | 运行 `powershell .\setup\generate-configs.ps1` 自愈绝对路径后，在项目根执行 `claude`。 |
-| **DeepSeek Harness** | `Tool/prompts/AGENTS.md` | `DSH-PROFILE.md` | 运行 `setup\generate-configs.ps1` 生成官方 `- insert:` 语法的 `cordis.generated.yml`，使用 `dsh web --patch ...` 或粘贴进 Profile。 |
+| **DeepSeek Harness** | 项目根 `AGENTS.md`（自动生成） | `DSH-PROFILE.md` | `python setup/dsh-merge.py` 幂等挂载进 `cordis.patch.yml`；也可 `dsh web --patch ...` 临时挂载。校验：`python setup/test_dsh_mount.py`。 |
 | **OpenCode / Codex** | 项目根 `AGENTS.md` | `opencode.jsonc` | 运行 `setup\generate-configs.ps1` 生成符合 OpenCode 官方标准的 `opencode.jsonc`，在项目根直接启动 `opencode`。 |
 
 > 📖 **咨询级部署与全套排障手册**：关于四大 Agent 的具体配置细则、常见报错（`No module named mcp`、执行策略受限、Java环境缺省等）的解决方案，请详阅 [**MANUAL/DEPLOYMENT.md**](MANUAL/DEPLOYMENT.md)。

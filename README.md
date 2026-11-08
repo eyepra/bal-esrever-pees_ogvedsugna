@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.6.1-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
+  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.10.2-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
   <a href="https://github.com/angusdevgo/seep-reverse-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/Architecture-x86%20%7C%20x64%20%7C%20ARM64-orange?style=for-the-badge" alt="Architecture">
@@ -60,10 +60,10 @@ Users provide plain-language technical goals; the agent autonomously performs pl
 
 | Pain Point | Solution |
 |---|---|
-| 🔧 **Toolchain Fragmentation** | 27 MCP tools wrapping Radare2, JADX, Apktool, Frida and a PE engine — unified API, zero manual switching |
+| 🔧 **Toolchain Fragmentation** | 38 MCP tools wrapping Radare2, JADX, Apktool, Frida and a PE engine — unified API, zero manual switching |
 | 🧠 **Agent Decision Drift** | `softseep` orchestrator: two-stage auto-classification (Platform × 9 Task Types) + 7-gate decision tree |
 | 🛡️ **Model Refusal in Security Audits** | Three-tier mitigation: `BLOCK_NONE` injection + transparent terminology mapping + cognitive redirection |
-| 📚 **Ephemeral Knowledge** | 289 technical field journals + 14 desensitized paradigms + "search KB before executing" enforced discipline |
+| 📚 **Ephemeral Knowledge** | 294 technical field journals + 14 desensitized paradigms + "search KB before executing" enforced discipline |
 | 📦 **Setup Friction** | One-click `install.ps1` → supports Pi Agent, Claude Code, DeepSeek Harness (DSH), Codex / OpenCode |
 
 ---
@@ -91,7 +91,7 @@ User Input (plain language — "bypass the premium check in FooBar.apk")
          │                  │                    │
          ▼                  ▼                    ▼
    seep MCP            IDA Pro MCP         KB Search
-   27 tools            (optional)          289 journals
+   38 tools            (optional)          294 journals
    (Radare2/JADX/                          (Zero-Waste Recon)
     Apktool/Frida)
          │
@@ -148,7 +148,7 @@ The agent autonomously:
 - 🔄 **PoC Self-Healing Loop**: Frida error → root-cause mapping → auto-fix → re-execute (up to 3 attempts, then structured handoff)
 - 💎 **14 Industrial Architecture Paradigms**: Monolithic offline PE → multi-process IPC → VM arbitration → .NET keygen → weak RSA bypass → Java agent → .NET VM bypass *(fully desensitized, Projects A through N)*
 - 🌐 **Transport-Layer Compliance Relay & Auto-Retry**: Pure stdlib localhost relay with streaming refusal auto-retry cascade (`S1-review-checklist` → `S2-review-framed` → `S3-review-en`), preserving target paths without semantic drift. Unit tests 84/84 passing.
-- ⚡ **DeepSeek Harness (DSH) Self-Healing Launcher**: 4s fast cold-start with automated zombie cleanup, web token URL extraction, and MCP verification suite (`start-dsh.ps1` / `stop-dsh.ps1`).
+- ⚡ **DeepSeek Harness (DSH) integration**: one-command idempotent mount into `$DSH_HOME/profiles/<p>/cordis.patch.yml` (`setup/dsh-merge.py`, backs up and keeps your own entries), with `toolCallTimeoutMs` set so long tasks are not cut off at DSH's 60 s default, and an end-to-end check that boots the server from DSH's own composed config (`setup/test_dsh_mount.py`).
 - 🛡️ **Measured Anti-Refusal Defense**: Gemini-safe prompt reshaping (`gemini-safe.flag`), L1 observable decision logging (`l1-log.flag`), and native `BLOCK_NONE` payload gating.
 - 🔌 **Offline-Ready**: All toolchains pre-bundled (251 MB), zero network dependencies after setup
 - 🪟 **Windows PE Deep-Dive Engine (`exe-reverse`)**: 41 gated references + **16 dependency-free Python engines** — `peutil` (RVA↔offset, imports/exports/TLS/relocs, MS checksum, per-section entropy), `pe_triage`, `pepatch` (equal-length + checksum recompute + **byte re-read from disk**), `aob_scan` (unique/ambiguous/permissive verdict), `pe_diff`, `hwprobe`, `trace_reduce` (+ optional SMT proof), `fold`. Covers packers, virtualization/flattening, .NET, Unity IL2CPP, packaged Python, kernel drivers, hardware tracing and hypervisor observation.
@@ -166,7 +166,7 @@ Seep\ (251 MB)
 ├── README.zh.md                   ← Chinese documentation (中文文档)
 ├── CLAUDE.md                      ← Project-level instructions for Claude Code
 ├── .mcp.json                      ← Project-level MCP registration (Claude Code / OpenCode)
-├── DSH-PROFILE.md                 ← DeepSeek Harness Cordis plugin config template
+├── DSH-PROFILE.md                 ← DeepSeek Harness: field reference, mounting, verification
 ├── check.bat                      ← ⭐ Double-click one-shot health verifier (Windows)
 ├── check.ps1                      ← PowerShell health verifier entry point
 ├── VERSION                        ← Current version marker
@@ -182,7 +182,7 @@ Seep\ (251 MB)
 │   │   └── safe-skills\           ← 5 standalone tool packages
 │   │
 │   ├── mcp\                       ← MCP Engine
-│   │   ├── seep_mcp_server.py     ← Core server: 27 native reversing & KB tools
+│   │   ├── seep_mcp_server.py     ← Core server: 38 native reversing, PE, Web, Android & KB tools
 │   │   ├── mcp.json.template      ← Global MCP client configuration template
 │   │   └── Tool\                  ← ⚠️ Hardcoded relative runtime path (do not rename)
 │   │       ├── safe\              ← Pre-bundled cross-platform toolchains
@@ -193,7 +193,7 @@ Seep\ (251 MB)
 │   │       │   ├── ida-pro-mcp\   ← IDA bridge adapter
 │   │       │   ├── js-reverse-mcp\← Web / JS debugging engine
 │   │       │   └── playwright-mcp\← Headless browser automation
-│   │       └── reverselab\        ← 289 field journals + attack chains
+│   │       └── reverselab\        ← 294 field journals + attack chains
 │   │
 │   ├── prompts\                   ← Agent coordination specs & runtime extensions
 │   │   ├── SYSTEM.md              ← Pi Agent system instructions
@@ -230,7 +230,7 @@ Seep\ (251 MB)
 
 ## 🛠️ MCP Tool Matrix
 
-The bundled `seep` MCP server exposes **27 native tools** across six functional groups:
+The bundled `seep` MCP server exposes **38 native tools** across eight functional groups:
 
 | Category | Tool | Functionality | Token Mode |
 |---|---|---|---|
@@ -249,12 +249,23 @@ The bundled `seep` MCP server exposes **27 native tools** across six functional 
 | | `seep_pe_aob_scan` | AOB signature lookup with `unique` / `ambiguous` / `pervasive` verdict | `limit=` |
 | | `seep_pe_diff` | Build-to-build diff with volatile header fields normalised, mapped back to RVA | — |
 | | `seep_pe_patch` | Verified equal-length patch: checksum recompute + post-write byte re-read | `dry_run=` |
+| **Android toolbox** | `seep_android_toolbox` | Readiness check for external Frida / objection / APKiD / Aotopsy toolchain | — |
+| | `seep_apkid_scan` | APKiD packing & anti-analysis fingerprint (protector vendor, obfuscator) | — |
+| | `seep_aotopsy` | Flutter / Dart AOT (`libapp.so`) static analysis, Dart symbol recovery | `keyword=` |
+| **Web & streaming** | `seep_web_pipeline` | One-shot chain: auth gate → fingerprint → evidence → retest → report | `authorized=` |
+| | `seep_web_gate` | Web stage gate with hard BLOCK on missing prior artefacts | — |
+| | `seep_cms_fingerprint` | CMS family, collection API, player chain, exposure-surface fingerprint | `deep=` |
+| | `seep_hls_analyze` | HLS six-root-cause verdict: referer / auth / AES-128 / DRM / source death | — |
+| | `seep_http_replay` | Header-variant matrix replay to isolate the gating header | — |
+| | `seep_spider_extract` | TVBox / CatVod spider three-entry extraction | — |
+| | `seep_web_report` | Generate the web source & exposure-surface assessment report | — |
+| | `seep_web_toolbox` | Readiness check for the Web toolbox (ffmpeg / nuclei / ffuf) | — |
 | **Android** | `seep_apk_info` | APK manifest, permissions, signatures (no Java) | — |
 | | `seep_apk_decompile` | JADX full Java source decompilation | — |
 | | `seep_apk_unpack` | Apktool resource + Smali disassembly | — |
 | | `seep_apk_smali_search` | Smali pattern search (crypto keys, auth gates) | `limit=` |
 | | `seep_apk_gen_hook` | Ready-to-run Frida hooks with stack traces | — |
-| **Knowledge Base** | `seep_kb_search` | Full-text search across 289 field journals | `limit=` |
+| **Knowledge Base** | `seep_kb_search` | Full-text search across 294 field journals | `limit=` |
 | | `seep_kb_read` | Full technical reference retrieval by topic | — |
 | | `seep_kb_checklist` | Emergency triage checklists & attack matrices | — |
 | | `seep_kb_payloads` | Security test seeds (JWT, SSRF, SSTI, SQLi) | — |
@@ -288,7 +299,32 @@ chmod +x setup/install.sh
 ./setup/install.sh
 ```
 
-> **What this does automatically**: Unpacks dependency archives (`node_modules.zip`) → validates pre-bundled tools → installs Python `mcp` libraries → registers MCP servers → resolves physical paths → runs full self-check.
+> **What this does automatically**: Unpacks dependency archives (`node_modules.zip`) → validates pre-bundled tools →
+> installs Python `mcp` libraries → registers MCP servers (picking an interpreter that actually has `mcp`) →
+> resolves physical paths → installs external capability packages (only the zero-cost Aotopsy by default) →
+> runs the full self-check plus a capability board.
+
+**Optional: fill in external capability packages**
+
+A few of the 38 MCP tools rely on programs that deliberately stay outside the repo. One command fills them in:
+
+```powershell
+powershell -File setup\install-capabilities.ps1 -Only all   # ffmpeg / frida / APKiD / nuclei / ffuf
+powershell -File setup\install-capabilities.ps1 -CheckOnly  # report only, no disk changes
+```
+
+**Linux / macOS**:
+
+```bash
+./setup/install-capabilities.sh --only all
+```
+
+> A missing component never blocks the MCP server: the affected tool returns an explicit fix hint,
+> and `check.ps1` / `verify.sh` reports it as 🟡 DEGRADED rather than a failure.
+> **Platform limits**: `aotopsy` (Flutter AOT) is Windows-only, and the eight `seep_web_*` tools
+> drive PowerShell scripts, so Unix needs PowerShell 7 installed first.
+> See [CROSS-PLATFORM.md](MANUAL/CROSS-PLATFORM.md).
+> See [MANUAL/DEPLOYMENT.md — external capability packages](MANUAL/DEPLOYMENT.md#5-外部能力包为什么需要单独一步).
 
 ### 3. Multi-Agent Setup
 
@@ -296,7 +332,7 @@ chmod +x setup/install.sh
 |---|---|---|---|
 | **Pi Agent** | `Tool/prompts/SYSTEM.md` | `~/.pi/agent/mcp.json` | `install.ps1` writes user configs & skills automatically. **Restart Pi** after installation. |
 | **Claude Code** | `CLAUDE.md` (project root) | `.mcp.json` (project root) | Run `powershell .\setup\generate-configs.ps1` to resolve paths, then launch `claude` in root. |
-| **DeepSeek Harness** | `Tool/prompts/AGENTS.md` | `DSH-PROFILE.md` | Run `setup\generate-configs.ps1` to produce `cordis.generated.yml` (official `- insert:` format), use `dsh web --patch ...` or paste into profile. |
+| **DeepSeek Harness** | project-root `AGENTS.md` (generated) | `DSH-PROFILE.md` | `python setup/dsh-merge.py` mounts it idempotently into `cordis.patch.yml`; `dsh web --patch ...` works too. Verify with `python setup/test_dsh_mount.py`. |
 | **OpenCode / Codex** | `AGENTS.md` (project root) | `opencode.jsonc` | Generated by `setup\generate-configs.ps1` (compliant with official OpenCode `mcp` schema), launch `opencode` in root. |
 
 > 📖 **Comprehensive Multi-Agent Guide**: For detailed step-by-step setup, cross-platform caveats, and exhaustive troubleshooting FAQ, see [**MANUAL/DEPLOYMENT.md**](MANUAL/DEPLOYMENT.md).

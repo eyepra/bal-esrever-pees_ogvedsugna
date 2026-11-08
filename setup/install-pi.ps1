@@ -3,7 +3,7 @@
   Seep 工作台 —— 一键配置 Pi Agent 运行环境 (加强版)
   包含：
     1. 备份原 ~/.pi/agent 配置
-    2. 同步 9 个 Skill
+    2. 同步 11 个 Skill
     3. 同步提示词与安全放行扩展
     4. 增量合并 mcp.json（保护已有用户配置，UTF-8 No BOM，反斜杠安全转义）
     5. 配置 settings.json
@@ -18,13 +18,49 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Root      = Split-Path -Parent $ScriptDir
 $NormalizedRoot = $Root.Replace('\', '/')
 $ToolDir   = Join-Path $Root 'Tool'
-$AgentDir  = Join-Path $env:USERPROFILE '.pi\agent'
+# 允许用 SEEP_AGENT_DIR 覆盖（隔离部署 / 沙盒测试 / 自定义 agent 根目录）
+$AgentDir  = if ($env:SEEP_AGENT_DIR) { $env:SEEP_AGENT_DIR } else { Join-Path $env:USERPROFILE '.pi\agent' }
 $SkillsDir = Join-Path $AgentDir 'skills'
 $ExtDir    = Join-Path $AgentDir 'extensions'
 
 function Write-Ok($m)   { Write-Host "    [OK] $m" -ForegroundColor Green }
 function Write-Warn($m) { Write-Host "    [!!] $m" -ForegroundColor Yellow }
 function Write-Info($m) { Write-Host "    [..] $m" -ForegroundColor Gray }
+
+# 解析「真正装了 mcp 库」的解释器并写绝对路径进 mcp.json。
+# 为什么不能直接写 "python"：用户机器上 `python` 可能指向没装 mcp 的解释器
+# （例如系统 Python 3.10 / 商店版 / conda base），服务端会一启动就 ImportError，
+# 而这类故障在体检里只表现为「MCP 服务没连上」，排查成本很高。
+function Resolve-SeepPython {
+    $cands = @()
+    if ($env:SEEP_PYTHON) { $cands += $env:SEEP_PYTHON }
+    foreach ($v in @(
+            (Join-Path $AgentDir 'seep-venv\Scripts\python.exe'),
+            (Join-Path $AgentDir 'seep-venv/bin/python')
+        )) {
+        if (Test-Path -LiteralPath $v) { $cands += $v }
+    }
+    $onPath = Get-Command python -ErrorAction SilentlyContinue
+    if ($onPath) { $cands += $onPath.Source }
+    $pyLauncher = Get-Command py -ErrorAction SilentlyContinue
+    if ($pyLauncher) {
+        foreach ($ver in @('3.12', '3.11', '3.13', '3.10')) {
+            try {
+                $cand = & py "-$ver" -c "import sys; print(sys.executable)" 2>$null
+                if ($LASTEXITCODE -eq 0 -and $cand) { $cands += $cand.Trim() }
+            } catch { }
+        }
+    }
+
+    foreach ($c in ($cands | Select-Object -Unique)) {
+        if (-not (Test-Path -LiteralPath $c)) { continue }
+        try {
+            & $c -c "import mcp" 2>$null | Out-Null
+            if ($LASTEXITCODE -eq 0) { return (Resolve-Path -LiteralPath $c).Path }
+        } catch { }
+    }
+    return $null
+}
 
 Write-Host "`n  === Pi Agent 环境配置 ===" -ForegroundColor Cyan
 
@@ -116,8 +152,17 @@ if (-not $existingConfig.mcpServers) {
 
 # 挂载核心 seep MCP
 $seepServerPy = "$NormalizedRoot/Tool/mcp/seep_mcp_server.py"
+$seepPython = Resolve-SeepPython
+if (-not $seepPython) {
+    $seepPython = 'python'
+    Write-Warn '未找到已安装 mcp 库的 Python 解释器，mcp.json 暂写 "python"。'
+    Write-Warn '请先运行: powershell -File setup\install-python.ps1，然后重跑本脚本。'
+}
+else {
+    Write-Ok "seep MCP 解释器: $seepPython"
+}
 $seepEntry = [PSCustomObject]@{
-    command = "python"
+    command = $seepPython
     args    = @($seepServerPy)
     env     = [PSCustomObject]@{
         PYTHONIOENCODING = "utf-8"
