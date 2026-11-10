@@ -4,7 +4,7 @@
   包含：
     1. 解压离线依赖 (node_modules.zip)
     2. Python 协议依赖安装
-    3. Pi Agent / Claude Code / DSH / OpenCode 配置生成
+    3. DSH 配置生成（Pi 的接线在单独的 install-pi.ps1）
     4. 外部能力包（Web 取证 / Android 工具箱 / 可选扫描器）
     5. 智能 IDA Pro 探测与自定义路径交互引导
     6. 全维度健康核验 + 能力看板
@@ -158,8 +158,8 @@ if (-not $SkipPi) {
     if ($LASTEXITCODE -ne 0) { $script:Failed += 'pi' }
 }
 
-# 自动生成 Claude / OpenCode / DSH 配置文件
-Write-Step '生成多 Agent 配置文件 (.mcp.json / opencode.jsonc / cordis.generated.yml)'
+# 生成 DSH 需要的配置文件与指令入口（Pi 由 install-pi.ps1 负责）
+Write-Step '生成 DSH 配置 (cordis.generated.yml / AGENTS.md)'
 & (Join-Path $ScriptDir 'generate-configs.ps1') -DshSkills $DshSkills
 
 # -----------------------------------------------------------------------------
@@ -168,18 +168,39 @@ Write-Step '生成多 Agent 配置文件 (.mcp.json / opencode.jsonc / cordis.ge
 if (-not $SkipDsh) {
     $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
     if (Test-Path $dshHome) {
-        Write-Step '挂载 DeepSeek Harness MCP 补丁'
-        $dshMerge = Join-Path $ScriptDir 'dsh-merge.py'
+        # 优先走插件包路线（1.14.0 起）：装包 + 把路径写进 profile，
+        # 之后由插件在运行时自己挂 MCP 与技能，不再往 patch 里塞一大堆条目。
+        $dshPlugin = Join-Path $ScriptDir 'dsh-plugin-setup.py'
         $dshPy = if ($env:SEEP_PYTHON) { $env:SEEP_PYTHON } else { 'python' }
-        if (Test-Path $dshMerge) {
+        $dshCli = Get-Command dsh -ErrorAction SilentlyContinue
+        $pluginOk = $false
+
+        if ((Test-Path $dshPlugin) -and $dshCli) {
+            Write-Step '安装 DeepSeek Harness 插件包（推荐路线）'
+            $skillsArg = if ($DshSkills -eq 'none') { @('--no-skills') } else { @() }
             try {
-                & $dshPy $dshMerge --root $Root 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
-                if ($LASTEXITCODE -eq 0) { Write-Ok 'DSH cordis.patch.yml 已挂载（自定义配置保留）' }
-                else { Write-Warn "DSH 挂载返回码 $LASTEXITCODE（不影响其他 Agent）" }
+                & $dshPy $dshPlugin --root $Root @skillsArg 2>&1 |
+                    ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+                if ($LASTEXITCODE -eq 0) { Write-Ok 'DSH 插件已安装，工作台路径已写入配置'; $pluginOk = $true }
+                else { Write-Warn "插件安装返回码 $LASTEXITCODE，回退到旧路线" }
             }
-            catch { Write-Warn "DSH 挂载失败：$($_.Exception.Message)（不影响其他 Agent）" }
+            catch { Write-Warn "插件安装失败：$($_.Exception.Message)，回退到旧路线" }
         }
-        else { Write-Warn '缺少 setup\dsh-merge.py，跳过 DSH 挂载' }
+
+        # 旧路线只在插件路线不可用时才用 —— 两条同时上会挂两份 MCP。
+        if (-not $pluginOk) {
+            Write-Step '挂载 DeepSeek Harness MCP 补丁（旧路线）'
+            $dshMerge = Join-Path $ScriptDir 'dsh-merge.py'
+            if (Test-Path $dshMerge) {
+                try {
+                    & $dshPy $dshMerge --root $Root 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+                    if ($LASTEXITCODE -eq 0) { Write-Ok 'DSH cordis.patch.yml 已挂载（自定义配置保留）' }
+                    else { Write-Warn "DSH 挂载返回码 $LASTEXITCODE（不影响其他 Agent）" }
+                }
+                catch { Write-Warn "DSH 挂载失败：$($_.Exception.Message)（不影响其他 Agent）" }
+            }
+            else { Write-Warn '缺少 setup\dsh-merge.py，跳过 DSH 挂载' }
+        }
     }
     else {
         Write-Info "未检测到 DSH（$dshHome），跳过；装了 DSH 后重跑本脚本即可自动挂载"
@@ -231,6 +252,18 @@ if (-not $SkipTools) {
 Write-Step '执行官方基准完备性自检 (verify.ps1 -Detailed)'
 & (Join-Path $ScriptDir 'verify.ps1') -Detailed
 
+# DSH 装了才跑 DSH 专属完整度（6 组 22 项 100 分）——
+# verify.ps1 查的是仓库资产本身，DSH 的接线是否到位是另一张表。
+$dshHomeForScore = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
+if ((Test-Path $dshHomeForScore) -and (Test-Path (Join-Path $ScriptDir 'verify-dsh.py'))) {
+    Write-Step 'DSH 接线完整度评分 (verify-dsh.py)'
+    $dshScorePy = if ($env:SEEP_PYTHON) { $env:SEEP_PYTHON } else { $script:VerifyPython }
+    if (-not $dshScorePy) { $dshScorePy = 'python' }
+    $scoreOut = & $dshScorePy (Join-Path $ScriptDir 'verify-dsh.py') 2>&1
+    $scoreOut | ForEach-Object { Write-Host "  $_" -ForegroundColor DarkGray }
+    if ($LASTEXITCODE -ne 0) { Write-Warn 'DSH 完整度未满分，看上面的缺失清单（不阻塞其它 Agent）' }
+}
+
 # ---------------------------------------------------------------- 总结
 Write-Host "`n=================================================================" -ForegroundColor White
 if ($script:Failed.Count -eq 0) {
@@ -243,7 +276,7 @@ Write-Host "=================================================================" -
 Write-Host @"
 
 开工指南:
-  1) 重新打开终端启动 Agent (Pi / Claude Code / DSH / OpenCode)
+  1) 重新打开终端启动 Agent (Pi 或 DSH)
   2) 在对话框中输入:  lab： 即可开启白盒测试！
 
 "@ -ForegroundColor Cyan

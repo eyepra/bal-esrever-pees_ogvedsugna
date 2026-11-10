@@ -8,7 +8,7 @@
 #   3. 安装 Python mcp 协议库（PEP 668 兜底）
 #   4. 备份 + 安全增量合并 ~/.pi/agent/mcp.json（不再整体覆盖）
 #   5. 同步技能（先删后拷）/ 提示词 / 扩展
-#   6. 生成 .mcp.json / opencode.jsonc / cordis.generated.yml
+#   6. 生成 DSH 配置（cordis.generated.yml / AGENTS.md）
 #   7. 可选：补齐外部能力包
 #
 # 关键修正（相对旧版）
@@ -219,8 +219,8 @@ else
     step "5/7  同步技能 / 提示词 / 扩展（已跳过 --skip-pi）"
 fi
 
-# ---------------------------------------------------------------- 6. 生成多 Agent 配置
-step "6/7  生成多 Agent 配置文件（.mcp.json / opencode.jsonc / cordis.generated.yml）"
+# ---------------------------------------------------------------- 6. 生成 DSH 配置
+step "6/7  生成 DSH 配置（cordis.generated.yml / AGENTS.md）"
 gen_py="$SCRIPT_DIR/generate-configs.py"
 if [ -f "$gen_py" ]; then
     if "$PY_BIN" "$gen_py" --dsh-skills "$DSH_SKILLS" >/dev/null 2>&1; then
@@ -237,15 +237,32 @@ fi
 if [ "$SKIP_DSH" = 0 ]; then
     DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"
     if [ -d "$DSH_HOME_DIR" ]; then
-        step "6b/7  挂载 DeepSeek Harness MCP 补丁"
-        if [ -f "$SCRIPT_DIR/dsh-merge.py" ]; then
-            if "$PY_BIN" "$SCRIPT_DIR/dsh-merge.py" --root "$ROOT" 2>&1 | sed 's/^/    /'; then
-                ok "DSH cordis.patch.yml 已挂载（自定义配置保留）"
+        # 优先走插件包路线（1.14.0 起）：装包 + 把路径写进 profile。
+        PLUGIN_OK=0
+        if [ -f "$SCRIPT_DIR/dsh-plugin-setup.py" ] && command -v dsh >/dev/null 2>&1; then
+            step "6b/7  安装 DeepSeek Harness 插件包（推荐路线）"
+            SKILLS_ARG=""
+            [ "$DSH_SKILLS" = "none" ] && SKILLS_ARG="--no-skills"
+            if "$PY_BIN" "$SCRIPT_DIR/dsh-plugin-setup.py" --root "$ROOT" $SKILLS_ARG 2>&1 | sed 's/^/    /'; then
+                ok "DSH 插件已安装，工作台路径已写入配置"
+                PLUGIN_OK=1
             else
-                warn "DSH 挂载失败（不影响其他 Agent）"
+                warn "插件安装失败，回退到旧路线"
             fi
-        else
-            warn "缺少 setup/dsh-merge.py，跳过 DSH 挂载"
+        fi
+
+        # 旧路线只在插件路线不可用时才用 —— 两条同时上会挂两份 MCP。
+        if [ "$PLUGIN_OK" = 0 ]; then
+            step "6b/7  挂载 DeepSeek Harness MCP 补丁（旧路线）"
+            if [ -f "$SCRIPT_DIR/dsh-merge.py" ]; then
+                if "$PY_BIN" "$SCRIPT_DIR/dsh-merge.py" --root "$ROOT" 2>&1 | sed 's/^/    /'; then
+                    ok "DSH cordis.patch.yml 已挂载（自定义配置保留）"
+                else
+                    warn "DSH 挂载失败（不影响其他 Agent）"
+                fi
+            else
+                warn "缺少 setup/dsh-merge.py，跳过 DSH 挂载"
+            fi
         fi
     else
         info "未检测到 DSH（$DSH_HOME_DIR），跳过"
@@ -274,6 +291,18 @@ else
     step "7/7  外部能力包（已跳过 --skip-capabilities）"
 fi
 
+# ---------------------------------------------------------------- 6c. DSH 完整度评分
+# verify.sh 查的是仓库资产本身；DSH 的接线是否到位是另一张表（6 组 22 项）。
+DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"
+if [ -d "$DSH_HOME_DIR" ] && [ -f "$SCRIPT_DIR/verify-dsh.py" ] && [ -n "$PY_BIN" ]; then
+    step "6c/7  DSH 接线完整度评分"
+    if "$PY_BIN" "$SCRIPT_DIR/verify-dsh.py" 2>&1 | sed 's/^/    /'; then
+        ok "DSH 完整度满分"
+    else
+        warn "DSH 完整度未满分，看上面的缺失清单（不阻塞其它 Agent）"
+    fi
+fi
+
 # ---------------------------------------------------------------- 汇总
 echo -e "\n${CYAN}================================================================================${RESET}"
 if [ ${#FAILED[@]} -eq 0 ]; then
@@ -284,7 +313,7 @@ else
 fi
 echo -e "${CYAN}================================================================================${RESET}"
 echo    "  下一步提示:"
-echo    "  1. 完全退出并重新打开 Agent（Pi / Claude Code / DSH / OpenCode）"
+echo    "  1. 完全退出并重新打开 Agent（Pi 或 DSH）"
 echo    "     —— MCP 工具在会话启动时握手，不重开看不到新工具"
 echo    "  2. 在对话框中发送: lab： 即可开启测试"
 echo -e "${CYAN}================================================================================${RESET}"

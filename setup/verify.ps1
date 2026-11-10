@@ -250,15 +250,14 @@ Test-CheckItem "提示词" "Pi Agent 系统指令 (SYSTEM.md 已就绪且去个�
     (Test-Path $p) -and (-not (Select-String -Path $p -Pattern '小π|主人' -Quiet))
 } "Tool/prompts/SYSTEM.md 不存在或包含未脱敏字符" "无脱敏漏洞" "$ToolDir\prompts\SYSTEM.md"
 Test-CheckItem "提示词" "通用跨 Agent 规范 (AGENTS.md)" { Test-Path (Join-Path $ToolDir 'prompts\AGENTS.md') } "检查 AGENTS.md" "规范文件存在" "$ToolDir\prompts\AGENTS.md"
-Test-CheckItem "提示词" "Claude Code 项目级规范 (CLAUDE.md 在项目根)" { Test-Path (Join-Path $Root 'CLAUDE.md') } "项目根缺失 CLAUDE.md" "CLAUDE.md 在根目录" "$Root\CLAUDE.md"
 Test-CheckItem "提示词" "DeepSeek Harness 配置文件 (DSH-PROFILE.md)" { Test-Path (Join-Path $Root 'DSH-PROFILE.md') } "缺失 DSH-PROFILE.md" "DSH-PROFILE.md 在根目录" "$Root\DSH-PROFILE.md"
 Test-CheckItem "扩展"   "底层安全放行与 Lab 状态机扩展 (.ts)" {
     Test-Path (Join-Path $ToolDir 'prompts\extensions\security-audit-interceptor.ts')
 } "安全拦截扩展缺失，无法实现 lab: 状态机与防拒功能" "扩展文件在位" "$ToolDir\prompts\extensions\security-audit-interceptor.ts"
 
-# 项目根 AGENTS.md：DSH 与 Codex 都从项目根读 AGENTS.md / CLAUDE.md 作为指令来源。
+# 项目根 AGENTS.md：DSH 从项目根读它作为指令来源（Pi 读 ~/.pi/agent/AGENTS.md）。
 # 它由 setup/generate-configs 从 Tool/prompts/AGENTS.md 复制生成，这里防漂移。
-Test-CheckItem "Agent" "项目根 AGENTS.md 与源同步 (DSH / Codex 指令入口)" {
+Test-CheckItem "Agent" "项目根 AGENTS.md 与源同步 (DSH 指令入口)" {
     $rootAgents = Join-Path $Root 'AGENTS.md'
     $srcAgents  = Join-Path $ToolDir 'prompts\AGENTS.md'
     if (-not (Test-Path $srcAgents)) { return $false }
@@ -283,14 +282,25 @@ Test-CheckItem "Agent" "DSH Cordis 补丁生成物合法 (insert + timeout)" {
 # DSH 已安装但未挂载 → DEGRADED（不阻塞；DSH 是可选的第四种 Agent 接入）
 $dshHomeDir = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
 if (Test-Path $dshHomeDir) {
-    Test-ManualItem "Agent" "DeepSeek Harness 已挂载 seep MCP (cordis.patch.yml)" {
+    Test-ManualItem "Agent" "DeepSeek Harness 已接入 seep MCP (插件包或旧挂载)" {
+        # 路线一：插件包（1.14.0 起推荐）——profile 的 dsh.profile.bundles 里有这个包名
+        $profilePkg = Join-Path $dshHomeDir 'profiles\web\package.json'
+        if (Test-Path $profilePkg) {
+            try {
+                $pj = Get-Content $profilePkg -Raw -Encoding UTF8 | ConvertFrom-Json
+                $bundles = @($pj.dsh.profile.bundles)
+                if ($bundles -contains 'seep-dsh-workbench') { return $true }
+            }
+            catch { }
+        }
+        # 路线二：旧路线（dsh-merge.py 写的标注块）
         $merge = Join-Path $ScriptDir 'dsh-merge.py'
         if (-not (Test-Path $merge)) { return $false }
         $py = if ($env:SEEP_PYTHON) { $env:SEEP_PYTHON } else { $script:VerifyPython }
         if (-not $py) { return $false }
         & $py $merge --root $Root --dsh-home $dshHomeDir --check 2>$null | Out-Null
         ($LASTEXITCODE -eq 0)
-    } "运行 python setup/dsh-merge.py 完成挂载（或 python setup/dsh-merge.py --global）" "已写入 cordis.patch.yml" "$dshHomeDir\profiles\web\cordis.patch.yml"
+    } "运行 python setup/dsh-plugin-setup.py（推荐）；旧路线 python setup/dsh-merge.py" "插件包已装入 profile" "$dshHomeDir\profiles\web\package.json"
 }
 
 # -----------------------------------------------------------------------------
@@ -347,7 +357,7 @@ Test-CheckItem "Skill" "独立战术安全技能包 (safe-skills 5组)" {
 } "safe-skills 目录缺失或不足 5 个技能包" "5 组独立技能包" "$localSkills\safe-skills"
 
 # SKILL.md 带 UTF-8 BOM 时，YAML frontmatter 解析器无法识别首行 `---`，
-# 整条技能会被 DSH / Claude Code 等 Agent 静默跳过（参见 GitHub Issue #6）。
+# 整条技能会被 DSH / Pi 静默跳过（技能目录必须含 SKILL.md + name frontmatter）。
 Test-CheckItem "Skill" "技能 SKILL.md 无 UTF-8 BOM（否则被 Agent 静默跳过）" {
     $bad = @(Get-ChildItem -Path (Join-Path $ToolDir 'skill') -Recurse -Filter 'SKILL.md' -ErrorAction SilentlyContinue |
         Where-Object {
@@ -543,9 +553,6 @@ Test-ManualItem "商业软件" "IDA Pro 商业反编译器协同 (需自备独�
     ($null -ne $ida -and $ida.state -eq 'READY')
 } "未检测到本地 IDA Pro，如无授权不影响核心链路，系统自动降级使用 Radare2（详见 MANUAL\IDA-PRO.md）；若已安装但没认出来，设置 SEEP_IDA_ROOT 指向 IDA 目录" "商业授权可选" "tool-registry.json 解析"
 
-Test-ManualItem "配置" "Claude Code 项目级 MCP 注册 (.mcp.json 在根目录)" {
-    Test-Path (Join-Path $Root '.mcp.json')
-} "根目录已备好 .mcp.json，在根目录直接执行 claude 即可免配加载" ".mcp.json 存在" "$Root\.mcp.json"
 
 # -----------------------------------------------------------------------------
 # 7. MANUAL/ 战术手册完备性校验 (Tactical Manuals)
@@ -635,7 +642,7 @@ $PrivacyExcludeRegex = '\\node_modules\\|\\__pycache__\\|\\Tool\\upstream\\|\\To
 # 非 git（压缩包）部署时它们会留在磁盘上，必须一并排除，否则每次体检都误报。
 $PrivacyExcludeNames = @(
     'verify.ps1', 'verify.sh',
-    'opencode.jsonc', 'cordis.generated.yml', 'relay-config.json',
+    'cordis.generated.yml', 'relay-config.json',
     'tool-index.json', 'tool-index.md'
 )
 $BinaryExt = @('.exe','.dll','.so','.dylib','.jar','.zip','.7z','.png','.jpg','.jpeg','.gif','.ico','.pdf','.bin','.dmp','.pyc','.idb','.i64','.ttf','.woff','.woff2')
@@ -671,7 +678,7 @@ Test-CheckItem "脱敏" "个人隐私零残留 (已跟踪文件全深度扫描)"
 Test-CheckItem "脱敏" "含本机路径的生成物未被 git 追踪" {
     if (-not (Test-Path (Join-Path $Root '.git'))) { return $true }
     $tracked = & git -C $Root ls-files 2>$null
-    $mustIgnore = @('opencode.jsonc', 'setup/cordis.generated.yml', 'Tool/scripts/compliance-relay/relay-config.json')
+    $mustIgnore = @('setup/cordis.generated.yml', 'Tool/scripts/compliance-relay/relay-config.json')
     foreach ($f in $mustIgnore) {
         if ($tracked -contains $f) { return $false }
     }
@@ -736,7 +743,7 @@ Write-Host "====================================================================
 if ($script:FailList.Count -eq 0) {
     Write-Host "`n  🎉 结论: 工作台处于 [READY / 完备就绪] 状态！" -ForegroundColor Green
     Write-Host "  基准清单对照完成，核心资产全部对齐。" -ForegroundColor Green
-    Write-Host "  您可以直接在 Agent (Pi / Claude / DSH / Codex) 中发送: lab： 开启测试！`n" -ForegroundColor Cyan
+    Write-Host "  您可以直接在 Agent (Pi / DSH) 中发送: lab： 开启测试！`n" -ForegroundColor Cyan
     exit 0
 } else {
     Write-Host "`n  ❌ 结论: 当前工作台存在未满足的核心依赖，请按照上述红色整改建议修复。`n" -ForegroundColor Red

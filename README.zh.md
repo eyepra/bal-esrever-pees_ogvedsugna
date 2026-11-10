@@ -1,3 +1,5 @@
+> **第一次来？先看 [INSTALL.md](INSTALL.md)** —— 讲清楚 Pi Agent 和 DeepSeek Harness 各装什么、怎么装，选错会白忙。
+
 <p align="center">
   <img src="app_logo.svg" alt="Seep Reverse Lab Logo" width="120" height="120">
 </p>
@@ -9,18 +11,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.13.0-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
+  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.15.0-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
   <a href="https://github.com/angusdevgo/seep-reverse-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://www.npmjs.com/package/seep-dsh-workbench"><img src="https://img.shields.io/npm/v/seep-dsh-workbench?style=for-the-badge&logo=npm&label=DSH%20插件" alt="npm"></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/Architecture-x86%20%7C%20x64%20%7C%20ARM64-orange?style=for-the-badge" alt="Architecture">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/MCP%20工具-23%20已集成-purple?style=for-the-badge&logo=fastapi" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/健康体检-52%2F52%20全绿通过-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
-  <img src="https://img.shields.io/badge/实战知识库-289%20篇战术笔记-teal?style=for-the-badge" alt="Knowledge Base">
+  <img src="https://img.shields.io/badge/MCP%20工具-38%20已集成-purple?style=for-the-badge&logo=fastapi" alt="MCP Tools">
+  <img src="https://img.shields.io/badge/健康体检-64%2F64%20全绿通过-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
+  <img src="https://img.shields.io/badge/实战知识库-294%20篇战术笔记-teal?style=for-the-badge" alt="Knowledge Base">
   <img src="https://img.shields.io/badge/脱敏范式-14%20大案例%20(A~N)-blue?style=for-the-badge" alt="Paradigms">
-  <img src="https://img.shields.io/badge/MANUAL%20SOP-9%20份专项手册-red?style=for-the-badge" alt="MANUAL SOPs">
+  <img src="https://img.shields.io/badge/MANUAL%20SOP-14%20份专项手册-red?style=for-the-badge" alt="MANUAL SOPs">
   <a href="https://linux.do/"><img src="https://img.shields.io/badge/社区-LINUX%20DO-23272A?style=for-the-badge&logo=discourse" alt="LINUX DO"></a>
 </p>
 
@@ -61,7 +64,7 @@
 | 🧠 **大模型缺乏决断逻辑** | `softseep` 总控：两级自动判型（平台 × 9 类业务）+ 七道门决策树 |
 | 🛡️ **云端模型频繁拒绝** | 三层保险：底座级 `BLOCK_NONE` 注入 + 动态口语合规转译 + 推理级思维重定向 |
 | 📚 **实战经验无法沉淀** | 294 篇战术实战笔记 + 14 大脱敏工业范式 + "先查知识库再动手"强制纪律 |
-| 📦 **环境部署摩擦高昂** | 一键 `install.ps1`，原生适配 Pi Agent / Claude Code / DeepSeek Harness / Codex |
+| 📦 **环境部署摩擦高昂** | 一键 `install.ps1`，两个 Agent 各自一条路：Pi Agent / DeepSeek Harness |
 
 ---
 
@@ -118,7 +121,7 @@
   <img src="docs/images/agent-workflow.png" alt="Seep 智能体全自动逆向与决策链路实录" width="880">
 </p>
 
-部署完成后，直接在 Agent 对话框发一句大白话：
+部署完成后（DSH 装法见 [INSTALL.md 路线 B](INSTALL.md#路线-bdeepseek-harness)），直接在 Agent 对话框发一句大白话：
 
 ```
 lab：分析 FooBar.apk，找到会员验证并绕过
@@ -135,6 +138,9 @@ Agent 自主完成：
 
 > 典型客户端应用全程耗时：**8–20 分钟，完全无人值守**。
 
+> **DSH 用户**：输入框底部点一次 **`Lab`**（变绿）等同于在消息里写 `lab：`；
+> 状态随时可在 **设置 → Seep 工作台** 看，`python setup/verify-dsh.py` 应报 `102 / 102`。
+
 ---
 
 ## ⚡ 核心能力
@@ -145,7 +151,7 @@ Agent 自主完成：
 - 🔄 **PoC 自愈循环**：Frida 报错 → 根因映射 → 自动修正代码 → 重跑（最多 3 次，超限后结构化移交人工）
 - 💎 **14 大工业级脱敏范式**：单进程离线 → 多进程 IPC → VM 集中判定 → .NET 算号 → 弱模 RSA 旁路 → Java 动态插桩 → .NET VM 逆向，全覆盖（项目 A ~ 项目 N）
 - 🌐 **链路层合规转译中继与自动重试**：纯标准库实现的本地中继，支持流式拒答自动重试级联（`S1 评审清单` → `S2 架构走查` → `S3 英文重塑`），100% 保留目标参数不漂移，84 项单元测试全绿
-- ⚡ **DeepSeek Harness (DSH) 接入**：一条命令幂等挂载进 `$DSH_HOME/profiles/<p>/cordis.patch.yml`（`setup/dsh-merge.py`，写前备份、你自己的条目原样保留），并显式设置 `toolCallTimeoutMs`（DSH 默认 60 秒会掐断长任务）；配套端到端校验 `setup/test_dsh_mount.py` 会按 DSH 自己合成的配置真启动一次并数工具
+- ⚡ **DeepSeek Harness (DSH) 接入**：`python setup/dsh-plugin-setup.py` 装一个几十 KB 的插件包并写入工作台路径 —— MCP（`toolCallTimeoutMs` 900 秒，DSH 默认 60 秒会掐断长任务）与 10 个技能由插件在运行时自己挂，仓库搬家只改这一处；`lab：` 闸门也升级为**插件内代码实现**（会话级、默认关、聊到 APK 不算激活）；另带**设置面板**（设置 → Seep 工作台），能看运行状态、直接改路径、列 20 个工具的四态清单。校验：`python setup/verify-dsh.py`（6 组 24 项 100 分）
 - 🛡️ **实测抗拒答综合防线**：Gemini-Safe 提示词语义重塑（`gemini-safe.flag`，377 token 拒答 → 3300 字深度分析）、L1 拦截器动态可观测日志（`l1-log.flag`）、底座级 `BLOCK_NONE` 注入
 - 🔌 **离线预置全量内置**：所有工具链物理打包（251 MB），部署后零外网依赖
 - 🪟 **Windows PE 深水区引擎（`exe-reverse`）**：41 篇带门禁的参考文档 + **16 个零依赖 Python 引擎** —— `peutil`（RVA↔偏移、导入导出/TLS/重定位、微软校验和、逐节熵）、`pe_triage`、`pepatch`（等长补丁 + 校验和重算 + **写盘后逐字节回读**）、`aob_scan`（unique/ambiguous/pervasive 裁决）、`pe_diff`、`hwprobe`、`trace_reduce`（可选 SMT 证明）、`fold`。覆盖保护壳、虚拟化/控制流平坦化、.NET、Unity IL2CPP、打包 Python、内核驱动、硬件追踪与 Hypervisor 观测
@@ -158,66 +164,104 @@ Agent 自主完成：
 <summary>📁 完整目录树（点击展开）</summary>
 
 ```
-Seep\ (251 MB)
+Seep\ (881 MB，其中 657 MB 是离线工具链)
 ├── README.md                      ← 全局说明（英文默认）
 ├── README.zh.md                   ← 本文件（中文文档）
-├── CLAUDE.md                      ← Claude Code 项目级原生指令
-├── .mcp.json                      ← 项目级 MCP 注册文件（Claude Code / OpenCode）
+├── INSTALL.md                     ← ⭐ 第一次来先看这个：Pi / DSH 各装什么、怎么装
+├── AGENTS.md                      ← 项目根指令入口（由 Tool/prompts/AGENTS.md 生成）
 ├── DSH-PROFILE.md                 ← DeepSeek Harness 接入：字段表 / 挂载方式 / 校验
-├── check.bat                      ← ⭐ 双击一键体检入口（Windows）
-├── check.ps1                      ← PowerShell 体检入口
-├── VERSION                        ← 当前版本标识
-├── CHANGELOG.md                   ← 面向用户的版本变更日志
+├── VERSION                        ← 版本标识（与 npm 包版本一致）
+├── CHANGELOG.md                   ← 版本变更日志
+├── LICENSE                        ← GPL-3.0
+├── check.bat / check.ps1          ← 双击一键体检（verify.ps1 的入口）
+├── update.bat / update.ps1        ← 双击一键更新（幂等、无损）
+│
+├── packages\dsh-workbench\        ← ⭐ ⬆ 发布到 npm 的插件包（45 KB，只有接线）
+│   ├── package.json               ← 包名 seep-dsh-workbench
+│   ├── cordis.patch.yml           ← 加载链里插的那一条
+│   ├── lib\index.js               ← 挂 MCP、读配置、管更新
+│   ├── lib\lab-gate.js            ← lab 会话级开关
+│   ├── lib\lab-rewrite.js         ← 敏感词改写（读仓库里的规则表）
+│   ├── lib\client.js              ← 输入框右侧 Lab 按钮 + 设置面板
+│   ├── test\lab-gate.test.mjs     ← 39 项单测
+│   └── README.md / LICENSE
 │
 ├── Tool\
-│   ├── skill\                     ← 10 大逆向专业技能
-│   │   ├── softseep\              ← ⭐ 总控调度器（路由 + 10 专题按需库）
-│   │   ├── exe-reverse\           ← Windows PE 深水区（41 篇规范 + 16 个引擎）
-│   │   ├── apkseep\               ← Android 全链路逆向（115 个工程文件）
-│   │   ├── ida-reverse\           ← IDA Pro 自动化联动
-│   │   ├── client-license-validation-bypass\ ← 跨运行时卡密/授权攻防手册
-│   │   └── safe-skills\           ← 5 个独立战术工具包
+│   ├── skill\                     ← 10 个逆向技能（5 主 + 5 安全）
+│   │   ├── softseep\              ← ⭐ 总控调度器（判型 + 路由 + 按需加载）
+│   │   ├── exe-reverse\           ← Windows PE 深水区
+│   │   ├── apkseep\               ← Android 全链路逆向
+│   │   ├── webseep\               ← Web / 流媒体 / HLS 链路
+│   │   ├── client-license-validation-bypass\ ← 跨运行时卡密/授权攻防
+│   │   └── safe-skills\           ← 5 个独立战术包
+│   │       ├── apk-reverse\           ← 上游移动端逆向套件
+│   │       ├── ida-reverse\           ← IDA Pro 自动化
+│   │       ├── mcp-js-reverse-playbook\ ← JS 签名链路
+│   │       ├── radare2\               ← 命令行逆向
+│   │       └── reverse-engineering\   ← 通用逆向方法论
 │   │
 │   ├── mcp\                       ← MCP 服务引擎
-│   │   ├── seep_mcp_server.py     ← 核心服务端，38 个底层分析工具
+│   │   ├── seep_mcp_server.py     ← 核心服务端，38 个分析工具
+│   │   ├── tool_resolver.py       ← 工具路径解析（user → env → bundled → path → candidates）
 │   │   └── Tool\                  ← ⚠️ 硬编码相对路径，禁止重命名/搬移
-│   │       ├── safe\              ← 物理内置工具箱
+│   │       ├── safe\              ← 物理内置工具箱（561 MB）
 │   │       │   ├── jadx\          ← 75 MB（v1.5.6）
 │   │       │   ├── radare2\       ← 39 MB（v5.9.8 全套）
 │   │       │   ├── apktool\       ← 24 MB（v2.11.0）
 │   │       │   ├── hook-mcp\      ← Frida / LSPosed 动态注入模板
 │   │       │   ├── ida-pro-mcp\   ← IDA 桥接适配层
-│   │       │   ├── js-reverse-mcp\← Web / JS 调试引擎
-│   │       │   └── playwright-mcp\← 无头浏览器自动化
-│   │       └── reverselab\        ← 294 篇战术笔记 + 攻击链模板
+│   │       │   ├── js-reverse-mcp\← Web / JS 调试引擎（24 个工具）
+│   │       │   └── playwright-mcp\← 无头浏览器自动化（25 个工具，可选）
+│   │       └── reverselab\
+│   │           ├── kb\            ← 294 篇战术笔记
+│   │           └── docs\          ← llms.txt 等
 │   │
-│   ├── prompts\                   ← 智能体协同规范与运行时扩展
-│   │   ├── SYSTEM.md              ← Pi Agent 系统指令
-│   │   ├── AGENTS.md              ← 跨 Agent 通用指令规范
-│   │   └── extensions\            ← BLOCK_NONE 注入 + 口语合规转译
+│   ├── prompts\                   ← 智能体协同规范
+│   │   ├── SYSTEM.md              ← 作战纪律正文（lab： 时注入）
+│   │   ├── AGENTS.md              ← 通用指令底座（Pi / DSH 共用）
+│   │   └── extensions\            ← Pi 的 lab 闸门 + 词替换扩展（TS）
 │   │
-│   ├── cases\                     ← 14 大脱敏工业案例库（项目 A ~ N，含版本演进归档 v2）
-│   ├── upstream\                  ← 上游溯源验证层（4 大开源项目完整镜像）
-│   │   ├── apk-reverse\           ← newliver666/apk-reverse（Android 逆向与离线测试集）
-│   │   ├── open-tgtylab\          ← GeniusHu-tgty/Open-tgtylab（攻防流水线与提效路由）
-│   │   ├── open-reverselab\       ← LING71671/open-reverselab（知识库、boards 与工具生态）
-│   │   └── exe-reverse\           ← dabao1955/exe-reverse（Windows PE 深水区证据记录与回归套件）
-│   ├── docs\                      ← 工程参考文档
+│   ├── cases\                     ← 14 个脱敏工业案例（项目 A ~ N）
+│   ├── upstream\                  ← 上游溯源验证层（4 个开源项目完整镜像）
+│   │   ├── apk-reverse\           ← newliver666/apk-reverse（Android 逆向）
+│   │   ├── open-tgtylab\          ← GeniusHu-tgty/Open-tgtylab（攻防流水线）
+│   │   ├── open-reverselab\       ← LING71671/open-reverselab（知识库与工具生态）
+│   │   └── exe-reverse\           ← dabao1955/exe-reverse（PE 深水区）
+│   ├── aotopsy\                   ← Flutter AOT 分析（Windows-only）
+│   ├── docs\                      ← 工程参考文档（TOOLKIT_GUIDE / PROVENANCE / DOWNLOADS）
 │   └── scripts\                   ← 工作流自动化脚本
 │       └── compliance-relay\      ← 🌐 链路层合规转译中继（纯标准库，三协议）
 │
-├── setup\                         ← 安装、修复、更新、卸载与校验脚本集
-└── MANUAL\                        ← 9 份战术专项 SOP 手册
-    ├── PREREQUISITES.md           ← 环境与依赖预要求指南
-    ├── IDA-PRO.md                 ← IDA Pro 商业软件接入指南（支持 idalib 原生与传统 stdio 双模式）
-    ├── ANTI-DEBUG.md              ← 反调试绕过字典与代理 DLL 框架
-    ├── UNPACKING.md               ← UPX/MPRESS/Themida/VMP 脱壳 SOP
-    ├── POC-VALIDATION.md          ← Frida 自愈循环与 PoC 沙箱验证
-    ├── DEPLOYMENT.md              ← 全景部署与多 Agent 集成指南
-    ├── DEPLOYMENT-CHECKLIST.md    ← 官方部署资产核验基准清单（51 项）
-    ├── CROSS-PLATFORM.md          ← 跨平台（Windows/Linux/macOS）运行与战术等价指南
-    ├── COMPLIANCE-RELAY.md        ← 链路层合规转译中继与防拒自动重试指南
-    └── MODEL-REFUSAL-MATRIX.md    ← 实测大模型拒答矩阵与提示词重塑研究
+├── setup\                         ← 安装 / 修复 / 更新 / 卸载 / 校验 脚本集
+│   ├── install.ps1 / install.sh   ← 总入口（内部按 Agent 分发）
+│   ├── install-pi.ps1             ← Pi 专用：写 mcp.json + 拷技能
+│   ├── dsh-plugin-setup.py        ← DSH 专用：装插件包 + 写路径（--from-npm 可选）
+│   ├── verify.ps1 / verify.sh     ← 仓库基准自检（64 项）
+│   ├── verify-dsh.py              ← DSH 深度自检（25 项 / 102 分）
+│   ├── pack-plugin.py             ← 打 npm 包（只产出 tgz + sha256，绝不发布）
+│   ├── update.ps1 / update.sh     ← 幂等更新
+│   ├── uninstall.ps1 / uninstall.sh
+│   ├── tool-registry.json         ← 20 个外部工具的查找规则
+│   └── tool-paths.local.json      ← 你手填的工具路径（gitignore，不入库）
+│
+├── MANUAL\                        ← 14 份战术专项 SOP 手册
+│   ├── AGENTS.md                  ← ⭐ Pi 与 DSH 的接线对照（两列）
+│   ├── UPDATING.md                ← ⭐ 插件发哪、怎么更新、连带更新什么
+│   ├── PUBLISHING.md              ← 维护者发版纪律与 Runbook
+│   ├── PREREQUISITES.md           ← 环境与依赖预要求
+│   ├── IDA-PRO.md                 ← IDA Pro 接入（idalib / stdio 双模式）
+│   ├── ANTI-DEBUG.md              ← 反调试绕过字典与代理 DLL 框架
+│   ├── UNPACKING.md               ← UPX/MPRESS/Themida/VMP 脱壳 SOP
+│   ├── POC-VALIDATION.md          ← Frida 自愈循环与沙箱验证
+│   ├── DEPLOYMENT.md              ← 部署指南（Pi / DSH 两条路线）
+│   ├── DEPLOYMENT-CHECKLIST.md    ← 官方部署资产核验基准
+│   ├── DSH-VERIFICATION.md        ← DSH 验收清单（为什么是 102 分）
+│   ├── CROSS-PLATFORM.md          ← Windows / Linux / macOS 等价指南
+│   ├── COMPLIANCE-RELAY.md        ← 链路层转译中继与防拒重试
+│   └── MODEL-REFUSAL-MATRIX.md    ← 实测模型拒答矩阵与提示词重塑
+│
+├── docs\images\                   ← README 用的示意图
+└── .github\workflows\             ← 上游定点同步（防外溢）
 ```
 
 </details>
@@ -319,27 +363,44 @@ powershell -File setup\install-capabilities.ps1 -CheckOnly  # 只看现状
 > Unix 需先装 PowerShell 7。详见 [CROSS-PLATFORM.md](MANUAL/CROSS-PLATFORM.md)。
 > 详见 [MANUAL/DEPLOYMENT.md — 外部能力包](MANUAL/DEPLOYMENT.md#5-外部能力包为什么需要单独一步)。
 
-### 3. 多 Agent 接入方式
+### 3. 两个 Agent，两条接线
 
-| 智能体平台 | 核心指令 | MCP 服务配置 | 详细接入步骤 |
+本工作台只支持并验证两个 Agent。**内容只有一份，接线各管各的。**
+
+| Agent | 指令入口 | 接线物 | 装法 |
 |---|---|---|---|
-| **Pi Agent** | `Tool/prompts/SYSTEM.md` | `~/.pi/agent/mcp.json` | 运行 `install.ps1` 自动写入，完成后**必须重启当前终端与 Pi 会话**。 |
-| **Claude Code** | 项目根 `CLAUDE.md` | 项目根 `.mcp.json` | 运行 `powershell .\setup\generate-configs.ps1` 自愈绝对路径后，在项目根执行 `claude`。 |
-| **DeepSeek Harness** | 项目根 `AGENTS.md`（自动生成） | `DSH-PROFILE.md` | `python setup/dsh-merge.py` 幂等挂载进 `cordis.patch.yml`；也可 `dsh web --patch ...` 临时挂载。校验：`python setup/test_dsh_mount.py`。 |
-| **OpenCode / Codex** | 项目根 `AGENTS.md` | `opencode.jsonc` | 运行 `setup\generate-configs.ps1` 生成符合 OpenCode 官方标准的 `opencode.jsonc`，在项目根直接启动 `opencode`。 |
+| **Pi Agent** | `Tool/prompts/SYSTEM.md` → `~/.pi/agent/seep-system.md` | `~/.pi/agent/mcp.json` + 技能**副本** | `powershell -File setup/install-pi.ps1` |
+| **DeepSeek Harness** | 项目根 `AGENTS.md`（自动生成） | **插件包** `seep-dsh-workbench` | `python setup/dsh-plugin-setup.py` |
 
-> 📖 **咨询级部署与全套排障手册**：关于四大 Agent 的具体配置细则、常见报错（`No module named mcp`、执行策略受限、Java环境缺省等）的解决方案，请详阅 [**MANUAL/DEPLOYMENT.md**](MANUAL/DEPLOYMENT.md)。
+**DSH 插件已发布到 npm**，装的时候有两种选法：
+
+```bash
+# A. 从 npm 装（推荐给使用者：以后能在面板点「更新插件」）
+python setup/dsh-plugin-setup.py --from-npm
+
+# B. 用仓库里的本地目录（推荐给改代码的人：改完重启就生效）
+python setup/dsh-plugin-setup.py
+```
+
+> 两者都要先 clone 仓库 —— 561 MB 的工具本体在仓库里，不进 npm 包（包只有 45 KB 接线代码）。
+> `--from-npm` 额外支持 `--with-playwright`（多 25 个浏览器工具）、`--with-ida`（多 48 个 IDA 工具）。
+
+接线差异、lab 在哪、更新怎么做的逐项对照见 [MANUAL/AGENTS.md](MANUAL/AGENTS.md)。
+
+> 📖 **排障手册**：`No module named mcp`、执行策略受限、Java 环境缺省等常见问题，见 [**MANUAL/DEPLOYMENT.md**](MANUAL/DEPLOYMENT.md)。
 
 ### 4. 已有用户如何更新
 
 已经部署过？**不需要重新克隆或手动拷贝文件**。更新脚本是**幂等且无损**的 —— 你的模型凭据与自行添加的 MCP 条目永不会被覆盖。
 
+- **DSH 面板方式**：设置 → Seep 工作台 → **一键更新**（同时拉仓库、内容层、插件），有变化时会出现 **重启 DSH** 按钮，点一下自动重启，不用回终端；
 - **最简方式（双击批处理）**：Windows 用户直接双击项目根目录下的 **`update.bat`** 即可全自动执行；
 - **智能对话方式**：在支持的 Agent 会话中直接对 AI 发送 **“更新工作台”**，Agent 会原地自动调用更新脚本并向你汇报；
 - **命令行方式**：
 ```powershell
 # Windows
 powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
+
 ```
 ```bash
 # Linux / macOS
@@ -402,6 +463,8 @@ powershell -ExecutionPolicy Bypass -File ./setup/uninstall.ps1          # 再执
 ## 🎮 操作工作流与 Lab Mode
 
 ### Lab Mode 协议（会话级触发）
+
+> **DSH 用户**：输入框右侧模型选择器左边有一个 **`Lab`** 按钮 —— 灰底灰字表示未进入，点一下变绿底白字即进入；再点退出。只影响当前会话，不写磁盘、不重启。
 ```
 激活：  lab：                          # 或：lab：分析 FooBar.exe
 退出：  退出实验

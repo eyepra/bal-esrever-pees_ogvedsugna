@@ -1,3 +1,5 @@
+> **First time here? Read [INSTALL.md](INSTALL.md) first** — it spells out what to install for Pi Agent vs. DeepSeek Harness (they are two different frameworks).
+
 <p align="center">
   <img src="app_logo.svg" alt="Seep Reverse Lab Logo" width="120" height="120">
 </p>
@@ -9,16 +11,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.13.0-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
+  <a href="https://github.com/angusdevgo/seep-reverse-lab"><img src="https://img.shields.io/badge/Release-v1.15.0-brightgreen.svg?style=for-the-badge&logo=github" alt="Release"></a>
   <a href="https://github.com/angusdevgo/seep-reverse-lab/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
+  <a href="https://www.npmjs.com/package/seep-dsh-workbench"><img src="https://img.shields.io/npm/v/seep-dsh-workbench?style=for-the-badge&logo=npm&label=DSH%20plugin" alt="npm"></a>
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Android%20%7C%20Linux-0078D6?style=for-the-badge&logo=windows" alt="Platform">
   <img src="https://img.shields.io/badge/Architecture-x86%20%7C%20x64%20%7C%20ARM64-orange?style=for-the-badge" alt="Architecture">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/MCP%20Tools-23%20Integrated-purple?style=for-the-badge&logo=fastapi" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/Verifier-52%2F52%20Passed-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
-  <img src="https://img.shields.io/badge/Knowledge%20Base-289%20Journals-teal?style=for-the-badge" alt="Knowledge Base">
+  <img src="https://img.shields.io/badge/MCP%20Tools-38%20Integrated-purple?style=for-the-badge&logo=fastapi" alt="MCP Tools">
+  <img src="https://img.shields.io/badge/Verifier-64%2F64%20Passed-brightgreen?style=for-the-badge&logo=checkmarx" alt="Verifier">
+  <img src="https://img.shields.io/badge/Knowledge%20Base-294%20Journals-teal?style=for-the-badge" alt="Knowledge Base">
   <img src="https://img.shields.io/badge/Paradigms-14%20Cases%20(A~N)-blue?style=for-the-badge" alt="Paradigms">
   <img src="https://img.shields.io/badge/MANUAL%20SOPs-9%20Tactical%20Guides-red?style=for-the-badge" alt="MANUAL SOPs">
   <a href="https://linux.do/"><img src="https://img.shields.io/badge/Community-LINUX%20DO-23272A?style=for-the-badge&logo=discourse" alt="LINUX DO"></a>
@@ -64,7 +67,7 @@ Users provide plain-language technical goals; the agent autonomously performs pl
 | 🧠 **Agent Decision Drift** | `softseep` orchestrator: two-stage auto-classification (Platform × 9 Task Types) + 7-gate decision tree |
 | 🛡️ **Model Refusal in Security Audits** | Three-tier mitigation: `BLOCK_NONE` injection + transparent terminology mapping + cognitive redirection |
 | 📚 **Ephemeral Knowledge** | 294 technical field journals + 14 desensitized paradigms + "search KB before executing" enforced discipline |
-| 📦 **Setup Friction** | One-click `install.ps1` → supports Pi Agent, Claude Code, DeepSeek Harness (DSH), Codex / OpenCode |
+| 📦 **Setup Friction** | One-click `install.ps1` → dedicated paths for Pi Agent and DeepSeek Harness (DSH) |
 
 ---
 
@@ -148,9 +151,9 @@ The agent autonomously:
 - 🔄 **PoC Self-Healing Loop**: Frida error → root-cause mapping → auto-fix → re-execute (up to 3 attempts, then structured handoff)
 - 💎 **14 Industrial Architecture Paradigms**: Monolithic offline PE → multi-process IPC → VM arbitration → .NET keygen → weak RSA bypass → Java agent → .NET VM bypass *(fully desensitized, Projects A through N)*
 - 🌐 **Transport-Layer Compliance Relay & Auto-Retry**: Pure stdlib localhost relay with streaming refusal auto-retry cascade (`S1-review-checklist` → `S2-review-framed` → `S3-review-en`), preserving target paths without semantic drift. Unit tests 84/84 passing.
-- ⚡ **DeepSeek Harness (DSH) integration**: one-command idempotent mount into `$DSH_HOME/profiles/<p>/cordis.patch.yml` (`setup/dsh-merge.py`, backs up and keeps your own entries), with `toolCallTimeoutMs` set so long tasks are not cut off at DSH's 60 s default, and an end-to-end check that boots the server from DSH's own composed config (`setup/test_dsh_mount.py`).
+- ⚡ **DeepSeek Harness (DSH) integration**: `python setup/dsh-plugin-setup.py` installs a ~40 KB plugin package and writes the workbench path — the plugin mounts both MCP servers itself at runtime (`toolCallTimeoutMs` 900 s, since DSH's 60 s default cuts long tasks) plus the 10 skills, so moving the repo means editing one value. The `lab：` gate is now **code-enforced inside the plugin** (per-session, off by default; mentioning an APK does not activate it), and a **settings panel** (Settings → Seep 工作台) shows live status, lets you edit the path, and lists all 20 tools with their states. Verify with `python setup/verify-dsh.py` (6 groups / 21 items / 100 points).
 - 🛡️ **Measured Anti-Refusal Defense**: Gemini-safe prompt reshaping (`gemini-safe.flag`), L1 observable decision logging (`l1-log.flag`), and native `BLOCK_NONE` payload gating.
-- 🔌 **Offline-Ready**: All toolchains pre-bundled (251 MB), zero network dependencies after setup
+- 🔌 **Offline-Ready**: All toolchains pre-bundled (657 MB of tools), zero network dependencies after setup
 - 🪟 **Windows PE Deep-Dive Engine (`exe-reverse`)**: 41 gated references + **16 dependency-free Python engines** — `peutil` (RVA↔offset, imports/exports/TLS/relocs, MS checksum, per-section entropy), `pe_triage`, `pepatch` (equal-length + checksum recompute + **byte re-read from disk**), `aob_scan` (unique/ambiguous/permissive verdict), `pe_diff`, `hwprobe`, `trace_reduce` (+ optional SMT proof), `fold`. Covers packers, virtualization/flattening, .NET, Unity IL2CPP, packaged Python, kernel drivers, hardware tracing and hypervisor observation.
 
 ---
@@ -161,68 +164,106 @@ The agent autonomously:
 <summary>📁 Full Directory Tree (click to expand)</summary>
 
 ```
-Seep\ (251 MB)
+Seep\ (881 MB, of which 657 MB is the offline toolchain)
 ├── README.md                      ← This file (English default)
 ├── README.zh.md                   ← Chinese documentation (中文文档)
-├── CLAUDE.md                      ← Project-level instructions for Claude Code
-├── .mcp.json                      ← Project-level MCP registration (Claude Code / OpenCode)
+├── INSTALL.md                     ← ⭐ Read this first: what Pi vs DSH each install
+├── AGENTS.md                      ← Project-root instruction entry (generated from Tool/prompts)
 ├── DSH-PROFILE.md                 ← DeepSeek Harness: field reference, mounting, verification
-├── check.bat                      ← ⭐ Double-click one-shot health verifier (Windows)
-├── check.ps1                      ← PowerShell health verifier entry point
-├── VERSION                        ← Current version marker
-├── CHANGELOG.md                   ← User-facing release notes
+├── VERSION                        ← Version marker (matches the npm package version)
+├── CHANGELOG.md                   ← Release notes
+├── LICENSE                        ← GPL-3.0
+├── check.bat / check.ps1          ← Double-click health check (wraps verify.ps1)
+├── update.bat / update.ps1        ← Double-click update (idempotent, lossless)
+│
+├── packages\dsh-workbench\        ← ⭐ ⬆ The npm bundle (45 KB, wiring only)
+│   ├── package.json               ← Package name: seep-dsh-workbench
+│   ├── cordis.patch.yml           ← The single entry inserted into the load chain
+│   ├── lib\index.js               ← Mounts MCPs, reads config, handles updates
+│   ├── lib\lab-gate.js            ← Session-scoped lab switch
+│   ├── lib\lab-rewrite.js         ← Sensitive-term rewrite (reads the repo rule table)
+│   ├── lib\client.js              ← The Lab button next to the model picker + settings panel
+│   ├── test\lab-gate.test.mjs     ← 39 assertions
+│   └── README.md / LICENSE
 │
 ├── Tool\
-│   ├── skill\                     ← 10 specialized reverse engineering skills
-│   │   ├── softseep\              ← ⭐ Master orchestrator (Router + 10 on-demand references)
-│   │   ├── exe-reverse\           ← Windows PE deep-dive: 41 refs + 16 stdlib engines
-│   │   ├── apkseep\               ← End-to-end Android APK/DEX/SO skill (115 files)
-│   │   ├── ida-reverse\           ← IDA Pro automated spawning & MCP coordination
+│   ├── skill\                     ← 10 reverse-engineering skills (5 primary + 5 safe)
+│   │   ├── softseep\              ← ⭐ Master orchestrator (triage + routing + lazy refs)
+│   │   ├── exe-reverse\           ← Windows PE deep-dive
+│   │   ├── apkseep\               ← End-to-end Android reversing
+│   │   ├── webseep\               ← Web / streaming / HLS chains
 │   │   ├── client-license-validation-bypass\ ← Cross-runtime license attack playbook
 │   │   └── safe-skills\           ← 5 standalone tool packages
+│   │       ├── apk-reverse\           ← Upstream mobile reversing suite
+│   │       ├── ida-reverse\           ← IDA Pro automation
+│   │       ├── mcp-js-reverse-playbook\ ← JS signature chains
+│   │       ├── radare2\               ← CLI reversing
+│   │       └── reverse-engineering\   ← General methodology
 │   │
-│   ├── mcp\                       ← MCP Engine
-│   │   ├── seep_mcp_server.py     ← Core server: 38 native reversing, PE, Web, Android & KB tools
-│   │   ├── mcp.json.template      ← Global MCP client configuration template
-│   │   └── Tool\                  ← ⚠️ Hardcoded relative runtime path (do not rename)
-│   │       ├── safe\              ← Pre-bundled cross-platform toolchains
+│   ├── mcp\                       ← MCP engine
+│   │   ├── seep_mcp_server.py     ← Core server: 38 analysis tools
+│   │   ├── tool_resolver.py       ← Tool path resolution (user → env → bundled → path → candidates)
+│   │   └── Tool\                  ← ⚠️ Hardcoded relative path (do not rename)
+│   │       ├── safe\              ← Pre-bundled toolchains (561 MB)
 │   │       │   ├── jadx\          ← 75 MB (v1.5.6)
 │   │       │   ├── radare2\       ← 39 MB (v5.9.8 full suite)
 │   │       │   ├── apktool\       ← 24 MB (v2.11.0)
 │   │       │   ├── hook-mcp\      ← Frida / LSPosed instrumentation templates
 │   │       │   ├── ida-pro-mcp\   ← IDA bridge adapter
-│   │       │   ├── js-reverse-mcp\← Web / JS debugging engine
-│   │       │   └── playwright-mcp\← Headless browser automation
-│   │       └── reverselab\        ← 294 field journals + attack chains
+│   │       │   ├── js-reverse-mcp\← Web / JS debugging engine (24 tools)
+│   │       │   └── playwright-mcp\← Headless browser automation (25 tools, optional)
+│   │       └── reverselab\
+│   │           ├── kb\            ← 294 field journals
+│   │           └── docs\          ← llms.txt and friends
 │   │
-│   ├── prompts\                   ← Agent coordination specs & runtime extensions
-│   │   ├── SYSTEM.md              ← Pi Agent system instructions
-│   │   ├── AGENTS.md              ← Cross-agent portable instructions
-│   │   └── extensions\            ← BLOCK_NONE injection + terminology mapping
+│   ├── prompts\                   ← Agent coordination specs
+│   │   ├── SYSTEM.md              ← The discipline text injected on lab：
+│   │   ├── AGENTS.md              ← Portable instruction base (shared by Pi and DSH)
+│   │   └── extensions\            ← Pi's lab gate + term rewrite (TypeScript)
 │   │
-│   ├── cases\                     ← 14 desensitized industrial paradigm projects (A ~ N, incl. version-evolution archive v2)
-│   ├── upstream\                  ← Upstream verification & attribution layer (4 full mirrors)
-│   │   ├── apk-reverse\           ← newliver666/apk-reverse (Android RE & offline test suite)
-│   │   ├── open-tgtylab\          ← GeniusHu-tgty/Open-tgtylab (Security lab framework & workflows)
-│   │   ├── open-reverselab\       ← LING71671/open-reverselab (Knowledge base, boards & MCP ecosystem)
-│   │   └── exe-reverse\           ← dabao1955/exe-reverse (Windows PE evidence record & regression suite)
-│   ├── docs\                      ← Engineering reference docs
-│   └── scripts\                   ← Workspace automation scripts
+│   ├── cases\                     ← 14 desensitized industrial cases (projects A ~ N)
+│   ├── upstream\                  ← Upstream attribution layer (4 full mirrors)
+│   │   ├── apk-reverse\           ← newliver666/apk-reverse
+│   │   ├── open-tgtylab\          ← GeniusHu-tgty/Open-tgtylab
+│   │   ├── open-reverselab\       ← LING71671/open-reverselab
+│   │   └── exe-reverse\           ← dabao1955/exe-reverse
+│   ├── aotopsy\                   ← Flutter AOT analysis (Windows-only)
+│   ├── docs\                      ← Engineering references (TOOLKIT_GUIDE / PROVENANCE / DOWNLOADS)
+│   └── scripts\                   ← Workspace automation
 │       └── compliance-relay\      ← 🌐 Transport-layer compliance relay (stdlib-only, 3 protocols)
 │
-├── setup\                         ← Automated install, repair, update, uninstall & verify scripts
-└── MANUAL\                        ← 9 Tactical SOP guides
-    ├── PREREQUISITES.md           ← Environment & dependency requirements
-    ├── IDA-PRO.md                 ← Commercial IDA Pro integration (native idalib + stdio modes)
-    ├── ANTI-DEBUG.md              ← Anti-debug bypass dictionary & proxy DLL framework
-    ├── UNPACKING.md               ← UPX/MPRESS/Themida/VMP unpacking SOP
-    ├── POC-VALIDATION.md          ← Frida self-healing loop & PoC sandbox validation
-    ├── DEPLOYMENT.md              ← Comprehensive deployment & multi-Agent setup guide
-    ├── DEPLOYMENT-CHECKLIST.md    ← Official deployment baseline checklist (51 items)
-    ├── CROSS-PLATFORM.md          ← Cross-platform (Windows/Linux/macOS) execution guide
-    ├── COMPLIANCE-RELAY.md        ← Transport-layer compliance relay & auto-retry architecture
-    └── MODEL-REFUSAL-MATRIX.md    ← Measured refusal matrix & Gemini-safe prompt reshaping
+├── setup\                         ← Install / repair / update / uninstall / verify
+│   ├── install.ps1 / install.sh   ← One entry point (dispatches per agent)
+│   ├── install-pi.ps1             ← Pi only: writes mcp.json + copies skills
+│   ├── dsh-plugin-setup.py        ← DSH only: installs the bundle + writes the path (--from-npm optional)
+│   ├── verify.ps1 / verify.sh     ← Repo baseline check (64 items)
+│   ├── verify-dsh.py              ← DSH deep check (25 items / 102 points)
+│   ├── pack-plugin.py             ← Builds the npm tarball (prints tgz + sha256; never publishes)
+│   ├── update.ps1 / update.sh     ← Idempotent update
+│   ├── uninstall.ps1 / uninstall.sh
+│   ├── tool-registry.json         ← Lookup rules for 20 external tools
+│   └── tool-paths.local.json      ← Your manual tool paths (gitignored)
+│
+├── MANUAL\                        ← 14 tactical SOP guides
+│   ├── AGENTS.md                  ← ⭐ Pi vs DSH wiring, side by side
+│   ├── UPDATING.md                ← ⭐ Where the bundle is published, how updates flow
+│   ├── PUBLISHING.md              ← Maintainer release discipline & runbook
+│   ├── PREREQUISITES.md           ← Environment & dependency requirements
+│   ├── IDA-PRO.md                 ← IDA Pro integration (idalib + stdio)
+│   ├── ANTI-DEBUG.md              ← Anti-debug bypass dictionary & proxy DLL framework
+│   ├── UNPACKING.md               ← UPX/MPRESS/Themida/VMP unpacking SOP
+│   ├── POC-VALIDATION.md          ← Frida self-healing loop & sandbox validation
+│   ├── DEPLOYMENT.md              ← Deployment guide (Pi / DSH routes)
+│   ├── DEPLOYMENT-CHECKLIST.md    ← Official baseline checklist
+│   ├── DSH-VERIFICATION.md        ← DSH acceptance list (why 102 points)
+│   ├── CROSS-PLATFORM.md          ← Windows / Linux / macOS equivalence
+│   ├── COMPLIANCE-RELAY.md        ← Transport-layer relay & auto-retry
+│   └── MODEL-REFUSAL-MATRIX.md    ← Measured refusal matrix & prompt reshaping
+│
+├── docs\images\                   ← README artwork
+└── .github\workflows\             ← Upstream sync (spillover-proof)
 ```
+
 
 </details>
 
@@ -326,16 +367,34 @@ powershell -File setup\install-capabilities.ps1 -CheckOnly  # report only, no di
 > See [CROSS-PLATFORM.md](MANUAL/CROSS-PLATFORM.md).
 > See [MANUAL/DEPLOYMENT.md — external capability packages](MANUAL/DEPLOYMENT.md#5-外部能力包为什么需要单独一步).
 
-### 3. Multi-Agent Setup
+### 3. Two Agents, Two Wirings
 
-| Agent | Instruction File | MCP Config | Setup Procedure |
+This workbench supports and verifies exactly two agents. **There is one copy of the content; the wiring is per-agent.**
+
+| Agent | Instruction entry | What gets wired | Install |
 |---|---|---|---|
-| **Pi Agent** | `Tool/prompts/SYSTEM.md` | `~/.pi/agent/mcp.json` | `install.ps1` writes user configs & skills automatically. **Restart Pi** after installation. |
-| **Claude Code** | `CLAUDE.md` (project root) | `.mcp.json` (project root) | Run `powershell .\setup\generate-configs.ps1` to resolve paths, then launch `claude` in root. |
-| **DeepSeek Harness** | project-root `AGENTS.md` (generated) | `DSH-PROFILE.md` | `python setup/dsh-merge.py` mounts it idempotently into `cordis.patch.yml`; `dsh web --patch ...` works too. Verify with `python setup/test_dsh_mount.py`. |
-| **OpenCode / Codex** | `AGENTS.md` (project root) | `opencode.jsonc` | Generated by `setup\generate-configs.ps1` (compliant with official OpenCode `mcp` schema), launch `opencode` in root. |
+| **Pi Agent** | `Tool/prompts/SYSTEM.md` → `~/.pi/agent/seep-system.md` | `~/.pi/agent/mcp.json` + **copied** skills | `powershell -File setup/install-pi.ps1` |
+| **DeepSeek Harness** | project-root `AGENTS.md` (generated) | **bundle** `seep-dsh-workbench` | `python setup/dsh-plugin-setup.py` |
 
-> 📖 **Comprehensive Multi-Agent Guide**: For detailed step-by-step setup, cross-platform caveats, and exhaustive troubleshooting FAQ, see [**MANUAL/DEPLOYMENT.md**](MANUAL/DEPLOYMENT.md).
+**The DSH bundle is published on npm.** Two ways to install it:
+
+```bash
+# A. from npm (for users: enables the in-panel "Update plugin" button)
+python setup/dsh-plugin-setup.py --from-npm
+
+# B. from the local folder in this repo (for people editing the code: restart picks up changes)
+python setup/dsh-plugin-setup.py
+```
+
+> Both require cloning the repo first — the 561 MB toolchain lives in the repo and is **not** in the npm
+> package (the package is only 45 KB of wiring). `--from-npm` also accepts `--with-playwright`
+> (+25 browser tools) and `--with-ida` (+48 IDA tools).
+
+Line-by-line comparison of the two wirings, where `lab` lives, and how updates differ:
+[MANUAL/AGENTS.md](MANUAL/AGENTS.md).
+
+> 📖 **Troubleshooting**: `No module named mcp`, execution-policy restrictions, missing Java, and more —
+> see [**MANUAL/DEPLOYMENT.md**](MANUAL/DEPLOYMENT.md).
 
 ### 4. Updating an Existing Installation
 
@@ -347,6 +406,7 @@ Already deployed? No need to re-clone or copy files by hand. The updater is **id
 ```powershell
 # Windows
 powershell -ExecutionPolicy Bypass -File .\setup\update.ps1
+
 ```
 ```bash
 # Linux / macOS
@@ -408,7 +468,9 @@ Run the 9-dimension health verifier (52 checks) against `MANUAL/DEPLOYMENT-CHECK
 
 ## 🎮 Workflow & Lab Mode
 
-### Lab Mode Protocol (Session-Scoped Trigger)
+### Lab Mode Protocol
+
+> **DSH users**: a **`Lab`** button sits left of the model selector. Grey = off, click once to turn it green (on), click again to leave. Session-scoped only — nothing written to disk, no restart. (Session-Scoped Trigger)
 ```
 Activate:   lab:                          # or: lab: analyze FooBar.exe
 Deactivate: exit lab

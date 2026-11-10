@@ -12,6 +12,317 @@
 
 ## [Unreleased]
 
+### 变更
+
+- **只支持两个 Agent：Pi Agent 与 DeepSeek Harness。** 移除 Claude Code / OpenCode / Codex 的
+  支持面：`generate-configs` 不再生成 `.mcp.json` 与 `opencode.jsonc`，只产出
+  `setup/cordis.generated.yml` 与项目根 `AGENTS.md`；仓库里删掉 `CLAUDE.md` 与两个模板文件。
+- `verify.ps1` / `verify.sh` 去掉 Claude Code 与 `.mcp.json` 两项检查（66 → 64 项）。
+- 文档全面对齐：`INSTALL.md` 去掉路线 C，`MANUAL/DEPLOYMENT.md` 从「四大 Agent」改为两个，
+  `MANUAL/AGENTS.md` 重写为两列对照，README 中英双语的 Agent 表也同步。
+- `setup/test_config_parity.py` 只比两份产物（cordis + AGENTS）。
+
+> 模型层面的 Claude / GPT / Gemini 仍可作为**后端模型**使用（见 MODEL-REFUSAL-MATRIX），
+> 这里移除的是「把 Claude Code / Codex / OpenCode 当作受支持的 Agent 客户端」。
+
+
+## [1.15.0] - 2026-11-09
+
+### 新增
+
+- **常驻入口**：新会话时输入框上方那一行（工作区 / 标准模式 旁边）有个 `● Seep` 小圆点，
+  有对话时挪到输入框右侧。颜色即结论（绿=就绪 / 黄=有工具缺 / 红=没接上），点开是状态卡片。
+- **Lab 开关**：小卡片和面板里都能点，进/出 lab 模式立刻生效，不用重启。
+  两层语义：总闸（持久配置，关掉连 `lab：` 都不认）与运行时开关（内存，随时切）。
+- **敏感词替换 + 合规前缀**：lab 模式下把「破解 / 脱壳 / 会员 …」换成合规术语，
+  命中审计词时补一句授权前缀；不开 lab 一个字节都不动。
+  改写只作用于发给模型的那份，界面仍显示原文 —— 小卡片里「最近一次改写」可自证。
+- **工具路径人工指定**：20 个工具都能在面板里点「指定路径」，写进
+  `setup/tool-paths.local.json`（已 gitignore）。解析链变成
+  人工 → 环境变量 → 仓库内置 → 缓存 → PATH → 候选。
+- **内容层可外置**：技能 / 知识库 / 案例可以放在独立的 git 仓库，面板配「内容目录」，
+  「更新内容」只拉那份，不碰 561MB 的工具仓库。实测内容更新**不用重启**。
+- **面板「对比 / 更新工作台」**：`git fetch` 后报落后几个提交、差哪几条，
+  一键 `git pull --ff-only`。只快进，冲突就停，不替你合并。
+- **可选挂载 IDA / Playwright MCP**：`--with-ida` / `--with-playwright`，或面板勾选。
+  四个全挂是 135 个工具。
+- **插件可发布**：新增 `MANUAL/PUBLISHING.md`（发布章程）与 `setup/pack-plugin.py`（打包，不发布）。
+
+### 修复
+
+- 内置 jadx / apktool / radare2 能被 PowerShell 脚本找到了（原来只认 PATH 和 `~/Tools`，
+  web 取证脚本一律报「未找到 jadx」）。
+- `seep_aotopsy` 传原始 `libapp.so` 时误报「未知 action」，现在自动转单文件分析。
+- `spider-extract` 把 jadx 的「No classes」当成失败，现在降级继续。
+- 面板接口抛错会让 DSH 只回一个空的 400，现在会被兜住并说明具体原因。
+
+### 升级注意
+
+- 插件版本号从 `0.2.0` 改为**与仓库同号**（`1.15.0`），以后只需记一个版本号。
+- 只装 DSH 的话，还要补一条 `setup/generate-configs.ps1`，否则 `verify.ps1` 会差一项。
+- 面板更新入口合并为**一个「一键更新」按钮**：一次跑完仓库 `git pull`、内容层更新、插件更新，
+  逐条列出每项结果（成功 / 跳过 / 失败原因），并提示是否需要重启。
+  有本地改动时**拒绝更新而不是替你 stash** —— 丢改动比更新失败更糟。
+- 面板加**「重启 DSH」按钮**：更新有变化时出现，点后自动重启并轮询等它回来、刷新页面。
+  实现方式是一个脱离父进程的帮手脚本，按**原样命令行**（含 `--profile web`）重新拉起，
+  不用再回终端 Ctrl+C、重敲命令。改了工具路径也会提示重启。
+- `verify-dsh.py` 加 A8「profile 副本与仓库同步」（102 分制）：
+  pnpm 的 `file:` 安装靠硬链接，改仓库即生效；但只要用 `git checkout -- <文件>`
+  还原过一次，硬链接就断了，profile 里变成不再更新的副本 —— 表现为「改了代码没反应」。
+  这条把它变成一眼可见的红灯，并给出重装命令。已做负向验证（故意断开 → 98.0%）。
+- `dsh-plugin-setup.py` 新增 `--from-npm`：从 npm 装插件包，之后面板「更新插件」可用。
+  默认仍是本地目录装法（改代码重启即生效），两条命令随时可互换。
+- 修正文档与脚本里 `dsh plugin add --profile X` 的参数顺序错误（应为 `dsh plugin --profile X add`）。
+- 插件包内加 LICENSE（GPL-3.0），`files` 同步。
+
+
+## [1.14.0] - 2026-11-09
+
+### DSH 接入改成插件包，并给 `lab：` 加上代码级开关
+
+之前 DSH 的接法是往 profile 的 `cordis.patch.yml` 里写一堆条目，路径是绝对路径，
+仓库一搬家就全断。现在改成装一个几十 KB 的插件包（`packages/dsh-workbench/`），
+路径只在一个地方写：
+
+```powershell
+python setup\dsh-plugin-setup.py              # 装包 + 写入当前仓库路径
+python setup\dsh-plugin-setup.py --root D:\新位置\Seep   # 搬家后重跑这一条
+```
+
+### 变化
+
+| 位置 | 之前 | 现在 |
+| :--- | :--- | :--- |
+| DSH 接线 | `dsh-merge.py` 往 patch 写 4 个条目 | 装插件包；MCP 与技能由插件在运行时挂 |
+| 工作台路径 | 写死在 patch 里，搬家全断 | 配置项 `repoRoot`，重跑脚本即改 |
+| Python 解释器 | 写死绝对路径 | 按 `setup/tool-registry.json` 的候选链自己找 |
+| 启动输出 | 一行「就绪」 | 就绪 + 已接线哪几个，并写 `seep-workbench.status.json` |
+| 系统提示词 | 不注入 | **只有 `lab：` 之后** 才注入作战纪律，且只影响那个会话 |
+| 校验 | 解析合成配置去猜 | 读状态文件，问插件到底挂上了什么 |
+
+### lab 开关（文档级闸门升级为代码级）
+
+pi 上的 `lab：` 是靠扩展实现的。DSH 上现在也在插件里实现了同一套语义：
+
+- 每个会话一个内存状态，**默认关闭**；
+- 消息里出现 `lab：` / `lab:` / `实验：` / `进入实验：` 才打开；
+- `退出实验` / `退出工作环境` / `exit lab` 关掉；
+- 新会话、`resume`、`compact` 都从关闭开始；
+- 只认指令不认内容 —— 聊到 APK / 破解 / hook **不构成激活**；
+- 纪律正文只从仓库里的 `Tool/prompts/SYSTEM.md` 读，不另存副本；
+- 该文件缺失时降级为「只切状态、不注入正文」，不影响使用。
+
+想整个关掉：`--no-lab-gate`，或配置项 `labGate: false`。
+
+### 设置面板（同一版本内补上）
+
+插件现在带一个浏览器侧面板，两个入口同一个组件：
+
+- 设置 → **Seep 工作台**（独立一页，不用翻插件列表）
+- 设置 → 插件 → `seep-dsh-workbench` → 「配置」（官方给 bundle row 的配置位）
+
+面板能看三件事：运行状态（就绪/未就绪 + 修复命令）、配置项（路径 / Python / 技能 / lab）、
+20 个工具的四态清单（快速检查或「深度检测」真跑一遍）。
+
+实现上有四个必须知道的事实（都在 `DSH-PROFILE.md` 里写清了）：
+
+1. 配置字段必须声明 `.volatile()` —— DSH 只把 volatile 字段投影到设置表单。
+   普通字段进不了表单，面板既看不到也改不了。宿主侧用 `config.x.get()` 取值。
+2. 面板是双面包：`dsh.client` 声明 + `exports["./client"]` → `lib/client.js`，
+   格式是客户端模块系统的懒加载 CJS 工厂，不需要打包器（只 `require('react')`）。
+3. 浏览器读不到磁盘，所以宿主侧注册了 `GET /seep-workbench/api`（只放本机回环），
+   工具清单和仓库自检都从这儿取。
+4. `ConfigForm` 要每次渲染重新取 —— 保存后 profile 重载会销毁旧控制器，
+   拿旧对象再写会报 `writeGeneration undefined`。
+
+改完路径不会自动重挂 MCP，需要重启 DSH；技能 / lab 开关对下一个会话生效。
+面板上已直接写明。
+
+### 面板加「对比 / 更新工作台」
+
+以前更新仓库只能去命令行 `git pull`。现在面板上两件事分开：
+
+- **对比**：`git fetch` 后报落后几个提交、领先几个、工作区改动数、差哪几条提交标题（前 10 条）
+- **更新工作台**：`git pull --ff-only`，只快进
+
+都用 `--ff-only`：本地有冲突就失败并说明，不替你合并、不丢改动。
+更新内容层沿用同一个 updater（`updateGitDir`），只是目标目录不同。
+
+### 内容层可以单独更新，不用动 561MB 的工具仓库
+
+以前技能 / 知识库 / 案例只能跟着整个仓库走。现在内容可以住在一个独立的 git 仓库里：
+
+- 插件配置 `contentRoot` 指过去 → 技能从 `<内容仓>/skill` 挂载
+- MCP 子进程拿 `SEEP_CONTENT_ROOT` → 知识库读 `<内容仓>/kb`、案例读 `<内容仓>/cases`
+- 面板上「更新内容」按钮 → 对该目录执行 `git pull --ff-only`，只拉内容
+
+实测（临时造了个内容仓）：换根后技能注册表只剩内容仓的；pull 一个提交后
+新 KB 条目立刻可搜；新加的技能**立刻**出现在注册表里 —— 内容更新不用重启 DSH，
+只有工具层（MCP 进程）才需要。
+
+顺带补了 `GET /seep-workbench/api?skills=1`：现问一次技能注册表，
+用来确认「更新完到底扫到没有」。
+
+### Lab 模式补上「敏感词替换 + 合规前缀」
+
+之前 DSH 插件只注入了纪律，**没有做消息改写** —— pi 那边一直有，DSH 漏了。
+所以「开了 lab 但看着没变化」是对的：确实什么都没改。
+
+现在补上 `lib/lab-rewrite.js`，规则和 pi 完全一致：
+
+- 28 条口语词映射（破解→白盒鉴权脆弱性测试、脱壳→内存转储与还原解包 …），
+  单趟最长优先匹配，不会把「破解补丁」拆成两段
+- 命中审计特征词时补一句
+  `[合规安全测试与授权白盒审计任务: … (CWE-602)]`
+- Agent 自注入的上下文（`<system-reminder>`、`# AGENTS.md` 等）整条跳过，
+  否则会污染它自己的作战协议
+- 斜杠命令原样透传
+
+只在 `agent/pre-step` 的 waterfall 里、且**仅在 lab 模式开启时**改写；
+不开 lab 就是一个字节都不动。
+
+改写是发给模型的那份，界面照旧显示原文。为了让这件事可自证，加了观测点：
+`lab.rewrites` 计数、`lab.lastRewrite` 前后对比（小卡片里会显示），
+`SEEP_LAB_DEBUG=1` 时还会打日志。
+
+单测 32 → 39 项，覆盖「未开 lab 不动消息 / 替换词 / 补前缀 / 无触发词不加前缀 /
+注入上下文跳过 / 退出后停止 / 计数正确」。
+
+### Lab 开关做成了「点一下就进 / 就出」
+
+之前只有两个入口：发 `lab：` 进，发 `退出实验` 出；配置里的 `labGate` 只是总闸，
+改了还得重启。现在小卡片和面板里各有一个开关，**点了立刻生效，不重启**。
+
+两层语义分开：
+
+| 层 | 存哪 | 作用 |
+| :--- | :--- | :--- |
+| 总闸 `labGate` | 配置文件 | 关掉后连 `lab：` 也不认，什么都不触发 |
+| 运行时开关 | 内存（进程内） | 进出当前 lab 模式，立刻注入/停止注入 |
+
+实现上把 lab-gate 从「只返回 state」扩成控制器：
+
+```js
+installLabGate(ctx, { discipline, enabled })  // -> { setEnabled, setActive, snapshot, state }
+```
+
+`setActive(true)` 会记成「强制进入」，之后新建的会话也继承 —— 不然用户点了开关、
+开个新窗口又回到关闭，会很困惑。口令 `退出实验` 会把这个继承也撤掉。
+
+单测从 25 项加到 **32 项**，覆盖总闸关掉后口令失效、手动进入后新会话继承、
+手动退出后普通消息不回弹。
+
+### 入口从「三层菜单」变成「一眼就能看到」
+
+以前看状态要去 更多 → 设置 → Seep 工作台，太绕。现在多了一个常驻小圆点：
+
+- 新会话时它在输入框上方那一行（`conversation.hero.options`，工作区 / 标准模式 旁边）
+- 有对话时它在输入框右侧（`conversation.input.right`）
+- 圆点颜色直接给结论：绿=就绪，黄=有工具缺，红=没接上
+- 点开是张小卡片：版本、已接线、lab 开关、工具就绪/缺失、仓库路径 + 重新检查
+
+完整面板仍在设置里（改路径、20 个工具逐条看、指定工具路径）。
+
+### 工具不在默认路径？可以自己填
+
+原来只有 11 个工具有环境变量可指，其余 9 个（jadx / apktool / radare2 / nuclei / ffuf …）
+只能靠 PATH 或我们的候选表 —— 装在别处就判 MISSING。
+
+现在所有工具都能人工指定，三种写法等价：
+
+```powershell
+python Tool/mcp/tool_resolver.py --set jadx "D:/tools/jadx/bin/jadx.bat"
+```
+
+- 面板：某个工具行点「指定路径」→ 填 → 保存（假的路径会被拒，DSH 不会崩）
+- 文件：`<仓库>/setup/tool-paths.local.json`（已加进 .gitignore）
+
+解析链变成 `user → env → bundled → cache → path → candidates`，人工的永远优先。
+填错只提示不判死，会继续沿链往下找。
+
+### 可选 MCP：IDA 与 Playwright
+
+插件原来只挂 `seep` + `js-reverse`。`seep_ida_status` 一直报 Offline 不是坏了，
+是 DSH 里压根没挂 IDA 的 MCP。
+
+现在两个可选服务都支持，开关有三处（等价）：
+
+```powershell
+python setup\dsh-plugin-setup.py --with-ida --with-playwright
+```
+
+- 面板：设置 → Seep 工作台 → 勾「额外挂 IDA MCP / Playwright MCP」
+- 配置文件：`enableIda: true` / `enablePlaywright: true`
+
+实测（dsh-seep）：
+
+| 服务 | 结果 |
+| :--- | :--- |
+| ida | 48 个工具，进程是 `IDA\python311\python.exe ...\ida_pro_mcp\server.py` |
+| playwright | 25 个工具，`npx -y @playwright/mcp@latest` |
+
+四个都挂上时日志是：`已接线 seep / js-reverse / playwright / ida / 技能`。
+
+IDA 的解析顺序：`SEEP_IDA_ROOT` → `setup/tool-registry.json` 的 ida 候选目录 →
+找 `<root>/python311/python.exe` 与 `.../site-packages/ida_pro_mcp/server.py`。
+找不到只记一条提示，不影响其它服务启动。
+
+### 技能「挂上了」与「真的注册上了」不是一回事
+
+排查时发现：`mounted.skills = true` 只说明插件调了 `ctx.plugin(SkillFilesystem)`，
+并不能证明技能进了 DSH 的注册表 —— web profile 默认把 `skill-filesystem` 和
+`tool-skill` 两个入口 `disabled: true`，全靠插件在运行时补。
+
+现在插件启动后会等一会儿，用 `ctx.skills.snapshot()` 问一次**真实注册表**，
+把「到底看见几个、叫什么」写进状态文件：
+
+```json
+"skills": { "count": 11, "complete": true, "names": ["apk-reverse", ...] }
+```
+
+`verify-dsh.py` 的 F1 项也随之改成查这个字段：仓库里 10 个技能名必须全部出现。
+（11 而不是 10，是因为 DSH 自带一个 `diagnose-windows-sandbox-acl`。）
+
+另外踩到一个 cordis 的坑：服务不能在没 `inject` 的上下文里直接读，
+`ctx.skills` 会抛 `cannot get property "skills" without inject`；
+而 `ctx.inject()` 的回调**不保证同步触发**，必须等它（脚本里留了 6 秒兜底超时）。
+
+### 部署与校验的收尾（同一版本内）
+
+上一版把 DSH 接线改成插件包，但周边没跟上，补了四处：
+
+1. **旧路线残留会自动清掉**。如果 profile 里还留着 `dsh-merge.py` 写的标注块，
+   插件装完会一并删除 —— 两条路线同时生效会把 MCP 挂两份（这是真会出问题的）。
+2. **`dsh-plugin-setup.py --check`**：只报状态不改文件，告诉你包装了没、路径写了没、
+   配置里的路径跟当前仓库一不一致、有没有旧路线残留、上次启动接线了哪些。
+3. **`uninstall.ps1` / `uninstall.sh` 现在会处理 DSH**（之前完全没写）：
+   卸载插件包、删掉我们写的那条配置（保留你自己的条目，备份 `.bak`）、删状态文件。
+4. **`verify-dsh.py` 从 22 项加到 24 项**，并且装完自动跑：
+   - A6「没有旧路线残留」—— 负向验证过：故意造残留会掉到 97%
+   - A7「lab 开关单测通过」—— 真跑一次 `lab-gate.test.mjs`，
+     光看状态文件里的 `labGate: true` 说明不了它真的按「会话级 / 默认关 / 只认指令」工作
+
+`install.ps1` / `install.sh` 结束时会自动输出 DSH 完整度评分，不用再自己想起来跑。
+
+### 两个实测出来的坑（写进文档了）
+
+1. **`file:` 安装是硬链接**。包里新增文件必须 `remove` + `add` 重装才生效；
+   `dsh plugin update` 对 `file:` 会回 "Already up to date"，别信。
+   安装脚本每次都先 remove 再 add。
+2. **第三方插件包没有自动配置表单**。DSH 0.2.2 的插件页只在「内置插件」
+   列表里展示我们的条目，但不给第三方包生成配置界面。所以路径不能网页上填，
+   只能用 `dsh-plugin-setup.py` 写，或手改 `cordis.patch.yml`
+   （设置 → 打开配置文件 可直接打开）。
+
+### 新增/改动文件
+
+- `packages/dsh-workbench/` —— 插件包本体（`package.json` / `cordis.patch.yml` / `lib/index.js` / `lib/lab-gate.js` / `lib/client.js` 面板）
+- `packages/dsh-workbench/test/lab-gate.test.mjs` —— lab 开关单测，25 项，不需 DSH 与模型
+- `setup/dsh-plugin-setup.py` —— 装包 + 写路径 + 打印下一步
+- `setup/verify-dsh.py` —— 改读 `seep-workbench.status.json`；6 组 24 项 100 分（新增面板声明 / 旧路线残留 / lab 单测）
+- `setup/install.ps1` / `setup/install.sh` —— 先试插件路线，失败才回退旧路线
+- `DSH-PROFILE.md` —— 新增插件包路线章节与两个坑
+
 ## [1.13.0] - 2026-11-09
 
 ### 纠正一个错误结论：DSH 是有 skill 机制的

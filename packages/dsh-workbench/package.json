@@ -1,0 +1,57 @@
+{
+  "name": "seep-dsh-workbench",
+  "version": "1.15.0",
+  "private": false,
+  "description": "Seep 工作台的 DeepSeek Harness 接线包：把 MCP / 技能 / lab 闸门挂到 DSH（只装接线，不装工具）",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "dsh": ">=0.2.2-rc.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "mcp",
+    "reverse-engineering",
+    "security-audit"
+  ],
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/angusdevgo/Seep-Reverse-Lab.git",
+    "directory": "packages/dsh-workbench"
+  },
+  "homepage": "https://github.com/angusdevgo/Seep-Reverse-Lab",
+  "bugs": {
+    "url": "https://github.com/angusdevgo/Seep-Reverse-Lab/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node test/lab-gate.test.mjs"
+  }
+}

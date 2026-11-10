@@ -2,14 +2,12 @@
 # 本机隐私与运行凭据（绝不入库）
 # ---------------------------------------------------------------------------
 # 由 generate-configs.ps1 生成的、含本机绝对路径的配置文件
-opencode.jsonc
 setup/cordis.generated.yml
 
 # 合规中继的本机运行配置（含访问 token 与 provider 上游映射）
 Tool/scripts/compliance-relay/relay-config.json
 
 # 各 Agent 的本地配置副本
-.mcp.json.bak
 mcp.json
 
 # ---------------------------------------------------------------------------
@@ -71,3 +69,12 @@ node_modules/
 # -----------------------------------------------------------------------------
 /pip/
 /Microsoft/
+
+# 探活/任务工作区产物（工具运行时自动生成，不进仓库）
+Tool/mcp/probe/
+# 人工指定的工具路径（每台机器不同，不进仓库）
+setup/tool-paths.local.json
+
+# 打包产物（pack-plugin.py 输出，含本机路径）
+dist/
+*.tgz
